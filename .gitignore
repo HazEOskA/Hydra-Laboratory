@@ -13,3 +13,7 @@ __pycache__/
 *.log
 nemoclaw-debug*.tar.gz
 install-evidence.local.md
+*.tfvars
+*.auto.tfvars
+infra/hetzner/rendered/
+cloud-init-output.log

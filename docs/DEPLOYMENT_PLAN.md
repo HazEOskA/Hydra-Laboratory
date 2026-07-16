@@ -2,13 +2,13 @@
 
 ## Target
 
-A dedicated, single-user Ubuntu 24.04 host with Docker. The cloud Work container and GitHub Actions are control-plane environments, not runtime hosts.
+Hetzner Cloud CX43 `hydra-hermes-runtime-01`: x86_64, 8 shared vCPU, 16 GB RAM, 160 GB disk, Ubuntu 24.04, public IPv4 and IPv6, no GPU. Prefer `nbg1`; use `fsn1` only when capacity requires fallback. The cloud Work container and GitHub Actions are control-plane environments, not runtime hosts.
 
 ## Phases
 
-1. Provision the host using an approved provider and account.
-2. Apply the baseline packages from `infra/cloud-init.yaml` or an equivalent reviewed image.
-3. Install a supported Node.js version (`>=22.19`) through the operator's approved package source.
+1. In the operator's authenticated Hetzner Cloud session, create the exact server from `infra/hetzner/server-spec.yaml`, select an already-approved public SSH key, attach the CIDR-restricted firewall, and supply `infra/cloud-init.yaml` as user data. Do not put private keys or API tokens in user data.
+2. Wait for cloud-init completion and any required reboot. Confirm the `hydra` account accepts the selected public key before ending the provisioning session.
+3. Keep the provider firewall attached. It permits SSH only from approved operator CIDRs; no public ingress exists for ports 4000, 8642, or 18789.
 4. Run `scripts/remote-preflight.sh`; do not continue on a BLOCK.
 5. Review host writes: `~/.nemoclaw/`, `~/.local/state/nemoclaw/`, OpenShell state, Docker images/volumes, and host Model Router virtual environment/state created by NemoClaw.
 6. Make the NVIDIA credential available only to the approved process environment.
@@ -32,7 +32,11 @@ A dedicated, single-user Ubuntu 24.04 host with Docker. The cloud Work container
 
 ## Remote Access
 
-Hermes uses dashboard port 18789 and API port 8642. Keep both on loopback and use SSH forwarding during baseline validation. Do not publish these ports directly to the internet.
+SSH is key-only as `hydra`; root login, password login, keyboard-interactive login, agent/X11 forwarding, tunnels, and remote forwarding are disabled. Local forwarding remains available for loopback management access. Hermes uses dashboard port 18789 and API port 8642. Keep both, and Model Router 4000, on loopback. Never publish them directly to the internet.
+
+## Provisioning Boundary
+
+Repository preparation does not create the server. Provisioning requires an authenticated Hetzner control-plane session and an already-approved SSH public key plus operator IPv4/IPv6 CIDRs. No Hetzner API token, private key, NVIDIA key, or password belongs in chat, Git, cloud-init, or command arguments.
 
 ## Official References
 

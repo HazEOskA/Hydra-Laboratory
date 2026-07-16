@@ -6,7 +6,7 @@ Run `make static-check`. CI repeats shell syntax checks, YAML parsing, documenta
 
 ## Remote Preflight Gate
 
-`scripts/remote-preflight.sh` checks Linux architecture, Ubuntu release, CPU, RAM, disk, Docker and daemon health, curl, git, tar, Node.js, compatible Python and required modules, port 4000, NemoClaw/OpenShell presence, and sandbox-name collision.
+`scripts/remote-preflight.sh` requires Hetzner DMI identity, hostname `hydra-hermes-runtime-01`, x86_64, Ubuntu 24.04, exactly 8 online vCPU, a 16 GB RAM class, a 160 GB root-disk class, public IPv4 and IPv6 routes, completed cloud-init, no pending reboot, the dedicated `hydra` user, systemd, active Docker/UFW/fail2ban, hardened effective SSH settings, required tools, Node.js, compatible Python, free ports 4000/8642/18789, NemoClaw/OpenShell presence, and sandbox-name collision.
 
 Official minimum: 4 vCPU, 8 GB RAM, 20 GB free. Recommended: 4+ vCPU, 16 GB RAM, 40 GB free. Node.js must be 22.19 or later. Model Router Python must be `>=3.10,<3.14` and import `ensurepip`, `pyexpat`, `ssl`, and `venv`.
 
@@ -26,6 +26,8 @@ Run `scripts/validate-runtime.sh` and require:
 10. `nemohermes hydra-hermes-lab dashboard-url --quiet` returns a loopback management URL.
 11. One real prompt succeeds.
 12. Sanitized logs and Git contain no secrets.
+13. Host listeners on 4000, 8642, and 18789 are loopback-only.
+14. Host provider and capacity still match the locked Hetzner CX43 target.
 
 ## Controlled First Prompt
 
@@ -50,3 +52,7 @@ Record only a redacted outcome summary and PASS/FAIL. A status/doctor result alo
 ## APR Isolation
 
 APR validation is declarative: this repository contains no reference that executes against, imports from, or connects to Agent Proof Runtime. No APR checkout is needed or permitted.
+
+## Provider-Control Gate
+
+Before runtime installation, verify in the Hetzner control plane that the exact firewall is attached, inbound SSH contains only approved operator CIDRs, both public IP families exist, deletion protection is enabled for the server, and the selected image/location/plan match `infra/hetzner/server-spec.yaml`. Do not export provider account data into repository evidence.

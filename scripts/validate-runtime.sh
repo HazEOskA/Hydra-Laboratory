@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2015
 set -Eeuo pipefail
 
 SANDBOX="hydra-hermes-lab"
@@ -24,6 +25,8 @@ assert provider in {"nvidia-router", "routed"}
 ' "$SANDBOX" <<<"$status_json" || { fail "sandbox identity/readiness/provider"; exit 1; }
 pass "sandbox identity, readiness, and routed provider"
 
+[[ "$(hostname -s)" == hydra-hermes-runtime-01 ]] && pass "runtime host identity" || fail "unexpected runtime hostname"
+
 nemohermes "$SANDBOX" doctor --json >/dev/null && pass "doctor" || fail "doctor"
 
 route_json="$(nemoclaw inference get --json)" || { fail "active inference route"; route_json='{}'; }
@@ -33,6 +36,11 @@ d=json.load(sys.stdin)
 assert d.get("provider") in {"nvidia-router", "routed"}
 ' <<<"$route_json" && pass "active route: nvidia-router" || fail "active route is not nvidia-router"
 
+nemohermes "$SANDBOX" exec --no-stdin -- sh -lc \
+  'curl -fsS https://inference.local/v1/models >/dev/null' \
+  && pass "inference.local route responds inside sandbox" \
+  || fail "inference.local route did not respond inside sandbox"
+
 nemohermes "$SANDBOX" exec --no-stdin -- sh -lc 'test -z "${NVIDIA_INFERENCE_API_KEY:-}"' \
   && pass "raw NVIDIA key unavailable inside sandbox" \
   || fail "raw NVIDIA key appears available inside sandbox"
@@ -41,6 +49,20 @@ dashboard="$(nemohermes "$SANDBOX" dashboard-url --quiet)" || { fail "dashboard 
 [[ "$dashboard" == http://127.0.0.1:* || "$dashboard" == https://127.0.0.1:* ]] \
   && pass "dashboard URL available on loopback" \
   || fail "dashboard URL is missing or not loopback-bound"
+
+if command -v ss >/dev/null 2>&1; then
+  for port in 4000 8642 18789; do
+    listeners="$(ss -ltnH "sport = :$port" 2>/dev/null | awk '{print $4}' || true)"
+    [[ -n "$listeners" ]] || { fail "expected runtime listener missing on port $port"; continue; }
+    if grep -Evq '^(127\.0\.0\.1|\[::1\]):' <<<"$listeners"; then
+      fail "port $port has a non-loopback listener"
+    else
+      pass "port $port: loopback-only"
+    fi
+  done
+else
+  fail "ss unavailable; cannot validate listener exposure"
+fi
 
 printf 'MANUAL GATE: run the controlled first prompt from docs/VALIDATION_PLAN.md.\n'
 printf 'Result: failures=%d; first-prompt=PENDING\n' "$failures"

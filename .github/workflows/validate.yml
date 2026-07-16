@@ -21,9 +21,9 @@ jobs:
       - name: Parse YAML
         run: |
           ruby -e 'require "yaml"; ARGV.each { |f| YAML.safe_load_file(f, aliases: true) }' \
-            config/router-pool.example.yaml \
-            infra/cloud-init.yaml \
-            .github/workflows/validate.yml
+            $(find . -type f \( -name '*.yaml' -o -name '*.yml' \) -print)
+      - name: Validate locked Hetzner infrastructure
+        run: make infra-check
       - name: Validate documentation
         run: make docs-check
       - name: Scan for secrets

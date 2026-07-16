@@ -1,0 +1,41 @@
+api_version: hydra.osatech/v1
+kind: HetznerRuntimeHost
+
+metadata:
+  name: hydra-hermes-runtime-01
+  labels:
+    project: hydra-hermes-lab
+    role: runtime
+    managed-by: github
+
+spec:
+  provider: hetzner-cloud
+  server_type: cx43
+  architecture: x86_64
+  image: ubuntu-24.04
+  location_preference:
+    - nbg1
+    - fsn1
+  expected_resources:
+    shared_vcpu: 8
+    ram_gb: 16
+    disk_gb: 160
+    gpu_required: false
+  public_network:
+    ipv4: true
+    ipv6: true
+  cloud_init: ../cloud-init.yaml
+  ssh_key_source: hetzner-project-key-selection
+  firewall: hydra-hermes-runtime-01
+  delete_protection_before_runtime_install: true
+  rebuild_protection_before_runtime_install: true
+
+runtime:
+  repository: HazEOskA/hydra-hermes-lab
+  sandbox: hydra-hermes-lab
+  agent: hermes
+  inference_provider: routed
+  policy_tier: balanced
+  web_search: disabled
+  messaging: disabled
+  additional_mcp: disabled

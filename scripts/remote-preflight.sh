@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2015
 set -Eeuo pipefail
 
 SANDBOX="hydra-hermes-lab"
-MIN_CPU=4
-MIN_RAM_KIB=$((8 * 1024 * 1024))
-MIN_DISK_KIB=$((20 * 1024 * 1024))
+EXPECTED_HOSTNAME="hydra-hermes-runtime-01"
+MIN_RAM_KIB=$((15 * 1024 * 1024))
+MIN_ROOT_DISK_KIB=$((145 * 1024 * 1024))
+MIN_FREE_DISK_KIB=$((40 * 1024 * 1024))
 blocks=0
 warnings=0
 
@@ -13,41 +15,62 @@ warn() { printf 'WARN  %s\n' "$*"; warnings=$((warnings + 1)); }
 block() { printf 'BLOCK %s\n' "$*"; blocks=$((blocks + 1)); }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-printf 'Hydra Hermes remote preflight (read-only)\n'
+printf 'Hydra Hermes Hetzner CX43 preflight (read-only)\n'
 
-os="$(uname -s)"
-arch="$(uname -m)"
-[[ "$os" == Linux ]] && pass "OS: Linux" || block "OS must be Linux; detected $os"
-case "$arch" in x86_64|aarch64|arm64) pass "Architecture: $arch" ;; *) block "Unsupported architecture: $arch" ;; esac
+[[ "$(uname -s)" == Linux ]] && pass "OS family: Linux" || block "OS must be Linux"
+[[ "$(uname -m)" == x86_64 ]] && pass "Architecture: x86_64" || block "Architecture must be x86_64; detected $(uname -m)"
+[[ "$(hostname -s)" == "$EXPECTED_HOSTNAME" ]] && pass "Hostname: $EXPECTED_HOSTNAME" || block "Hostname must be $EXPECTED_HOSTNAME; detected $(hostname -s)"
 
 if [[ -r /etc/os-release ]]; then
   # shellcheck disable=SC1091
   . /etc/os-release
-  [[ "${ID:-}" == ubuntu ]] && pass "Distribution: ${PRETTY_NAME:-Ubuntu}" || warn "Ubuntu is the validated target; detected ${PRETTY_NAME:-unknown}"
+  [[ "${ID:-}" == ubuntu && "${VERSION_ID:-}" == 24.04 ]] \
+    && pass "Distribution: ${PRETTY_NAME:-Ubuntu 24.04}" \
+    || block "Distribution must be Ubuntu 24.04; detected ${PRETTY_NAME:-unknown}"
 else
-  warn "Cannot read /etc/os-release"
+  block "Cannot read /etc/os-release"
+fi
+
+if [[ -r /sys/class/dmi/id/sys_vendor ]]; then
+  vendor="$(tr -d '\n' </sys/class/dmi/id/sys_vendor)"
+  [[ "$vendor" == *Hetzner* ]] && pass "Cloud vendor: $vendor" || block "Expected Hetzner Cloud; detected vendor: $vendor"
+else
+  block "Cannot verify Hetzner DMI vendor"
 fi
 
 cpu="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 0)"
-(( cpu >= MIN_CPU )) && pass "CPU: ${cpu} vCPU" || block "CPU: ${cpu} vCPU; minimum is ${MIN_CPU}"
+[[ "$cpu" == 8 ]] && pass "CPU: 8 vCPU" || block "CX43 target requires 8 vCPU; detected $cpu"
 
 ram_kib="$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || printf 0)"
-(( ram_kib >= MIN_RAM_KIB )) && pass "RAM: $((ram_kib / 1024 / 1024)) GiB" || block "RAM below 8 GiB"
+(( ram_kib >= MIN_RAM_KIB )) && pass "RAM: $((ram_kib / 1024 / 1024)) GiB (16 GB class)" || block "RAM below the 16 GB host class"
 
-disk_kib="$(df -Pk "$HOME" | awk 'NR==2 {print $4}')"
-(( disk_kib >= MIN_DISK_KIB )) && pass "Disk free: $((disk_kib / 1024 / 1024)) GiB" || block "Free disk below 20 GiB"
+root_total_kib="$(df -Pk / | awk 'NR==2 {print $2}')"
+root_free_kib="$(df -Pk / | awk 'NR==2 {print $4}')"
+(( root_total_kib >= MIN_ROOT_DISK_KIB )) && pass "Root disk: $((root_total_kib / 1024 / 1024)) GiB (160 GB class)" || block "Root disk below the 160 GB host class"
+(( root_free_kib >= MIN_FREE_DISK_KIB )) && pass "Root free: $((root_free_kib / 1024 / 1024)) GiB" || block "Free root disk below NVIDIA recommended 40 GiB"
 
-for tool in bash curl git tar; do
+[[ "$(ps -p 1 -o comm= 2>/dev/null)" == systemd ]] && pass "Init: systemd" || block "systemd must be PID 1"
+[[ -f /var/lib/hydra-bootstrap/complete ]] && pass "Cloud-init bootstrap marker: present" || block "Cloud-init bootstrap did not complete"
+[[ ! -f /var/run/reboot-required ]] && pass "Pending reboot: none" || block "Host requires reboot before installation"
+[[ "${USER:-$(id -un)}" == hydra ]] && pass "Runtime user: hydra" || block "Run as the dedicated hydra user"
+
+for tool in bash curl git tar strings zstd jq ip ss sshd; do
   have "$tool" && pass "$tool: $(command -v "$tool")" || block "$tool is missing"
 done
 
+if have ip; then
+  ip -4 route show default | grep -q . && pass "IPv4 default route: present" || block "IPv4 default route is missing"
+  ip -6 route show default | grep -q . && pass "IPv6 default route: present" || block "IPv6 default route is missing"
+  ip -4 -o addr show scope global | grep -q . && pass "Global IPv4: present" || block "Global IPv4 address is missing"
+  ip -6 -o addr show scope global | grep -q . && pass "Global IPv6: present" || block "Global IPv6 address is missing"
+fi
+
+have nvidia-smi && warn "GPU detected but not required or used by this baseline" || pass "GPU: not required"
+
 if have node; then
   node_version="$(node -p 'process.versions.node')"
-  if node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>22 || (a===22 && b>=19) ? 0 : 1)'; then
-    pass "Node.js: $node_version"
-  else
-    block "Node.js $node_version; require >=22.19"
-  fi
+  node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>22 || (a===22 && b>=19) ? 0 : 1)' \
+    && pass "Node.js: $node_version" || block "Node.js $node_version; require >=22.19"
 else
   block "Node.js is missing; require >=22.19"
 fi
@@ -61,9 +84,29 @@ fi
 
 if have docker; then
   pass "Docker CLI: $(docker --version)"
-  docker info >/dev/null 2>&1 && pass "Docker daemon: reachable" || block "Docker daemon is not reachable by current user"
+  systemctl is-active --quiet docker && pass "Docker service: active" || block "Docker service is not active"
+  docker info >/dev/null 2>&1 && pass "Docker daemon: reachable by hydra" || block "Docker daemon is not reachable by hydra"
 else
   block "Docker is missing"
+fi
+
+if have sshd; then
+  ssh_effective="$(sudo -n sshd -T 2>/dev/null || sshd -T 2>/dev/null || true)"
+  for expected in 'permitrootlogin no' 'passwordauthentication no' 'kbdinteractiveauthentication no' 'allowusers hydra' 'allowtcpforwarding local'; do
+    grep -Fqx "$expected" <<<"$ssh_effective" && pass "SSH: $expected" || block "SSH effective config missing: $expected"
+  done
+fi
+
+if have ufw; then
+  ufw_status="$(sudo -n ufw status 2>/dev/null || true)"
+  grep -Fq 'Status: active' <<<"$ufw_status" && pass "UFW: active" || block "UFW is not active"
+else
+  block "UFW is missing"
+fi
+if [[ "$(systemctl is-active fail2ban 2>/dev/null || true)" == active ]]; then
+  pass "Fail2ban: active"
+else
+  block "Fail2ban is not active"
 fi
 
 selected_python=""
@@ -79,13 +122,13 @@ for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
 done
 [[ -n "$selected_python" ]] || block "No Python >=3.10,<3.14 with ensurepip, pyexpat, ssl, and venv"
 
-if have ss; then
-  if ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq '(^|:)4000$'; then block "Port 4000 is occupied"; else pass "Port 4000: available"; fi
-elif have lsof; then
-  lsof -nP -iTCP:4000 -sTCP:LISTEN >/dev/null 2>&1 && block "Port 4000 is occupied" || pass "Port 4000: available"
-else
-  warn "Cannot inspect port 4000; install ss or lsof"
-fi
+for port in 4000 8642 18789; do
+  if have ss && ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "(^|:)${port}$"; then
+    block "Port $port is occupied before onboarding"
+  else
+    pass "Port $port: available"
+  fi
+done
 
 for cli in nemoclaw nemohermes openshell; do
   if have "$cli"; then pass "$cli: $($cli --version 2>/dev/null | head -n1 || printf installed)"; else warn "$cli: not installed"; fi
@@ -99,8 +142,7 @@ name = sys.argv[1]
 data = json.load(sys.stdin)
 items = data if isinstance(data, list) else data.get("sandboxes", [])
 raise SystemExit(0 if any(item.get("name") == name for item in items) else 1)
-' "$SANDBOX" <<<"$list_json" >/dev/null 2>&1
-  then
+' "$SANDBOX" <<<"$list_json" >/dev/null 2>&1; then
     block "Sandbox name collision: $SANDBOX already exists"
   else
     pass "Sandbox name: available"

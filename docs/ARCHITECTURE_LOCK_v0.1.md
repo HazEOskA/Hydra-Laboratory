@@ -6,7 +6,7 @@ Status: LOCKED for baseline evaluation.
 
 - GitHub: source of truth and change history
 - GitHub Actions: static checks only
-- Ubuntu 24.04 remote host: persistent runtime target
+- Hetzner Cloud CX43 (`hydra-hermes-runtime-01`): persistent Ubuntu 24.04 runtime target
 - Docker: supported container runtime
 - NVIDIA NemoClaw / `nemohermes`: Hermes lifecycle CLI
 - NVIDIA OpenShell: sandbox, policy, credential, and inference boundary
@@ -17,7 +17,7 @@ Status: LOCKED for baseline evaluation.
 
 ```text
 GitHub
-  -> remote Ubuntu host
+  -> Hetzner CX43 / Ubuntu 24.04 / x86_64
   -> NemoClaw Host CLI
   -> OpenShell
      + host-side credentials
@@ -29,20 +29,20 @@ GitHub
      -> Hermes runtime and tools
 ```
 
-The sandbox never calls port 4000 directly. OpenShell maps the sandbox's managed `inference.local` route to the host-side Model Router. The raw NVIDIA key never enters the sandbox.
+The host is exactly 8 shared vCPU, 16 GB RAM and 160 GB disk in `nbg1` (fallback `fsn1`), with public IPv4 and IPv6 and no GPU requirement. The sandbox never calls port 4000 directly. OpenShell maps the sandbox's managed `inference.local` route to the host-side Model Router. The raw NVIDIA key never enters the sandbox.
 
 ## Repository Structure
 
 - `config/`: non-secret examples only
 - `docs/`: architecture, security, validation, decisions, evidence, and rollback
-- `infra/`: generic Ubuntu host definition and requirements
+- `infra/`: locked Hetzner target, cloud-init, provider-firewall controls, and requirements
 - `scripts/`: preflight, install, onboard, validation, scan, and guarded destroy
 - `.github/workflows/`: static validation, never persistent runtime hosting
 
 ## Execution Flow
 
 1. Validate repository statically.
-2. Select and connect a single-user Ubuntu host.
+2. Provision the reviewed Hetzner CX43 with an approved public SSH key and CIDR-restricted provider firewall.
 3. Run remote preflight without mutation.
 4. Review exact write paths and elevation needs.
 5. Inject `NVIDIA_INFERENCE_API_KEY` through the host environment or approved secret store.
@@ -56,7 +56,7 @@ Static CI proves script syntax, required documentation, YAML parseability, and a
 
 ## Deployment / Runtime Flow
 
-There is no web deployment. The remote host runs one sandbox named `hydra-hermes-lab`. Dashboard ports remain loopback-bound and are accessed through an operator-controlled SSH tunnel unless a separately reviewed secure ingress is approved.
+There is no web deployment. The remote host runs one sandbox named `hydra-hermes-lab`. Provider firewall input exposes only key-only SSH from approved operator CIDRs. Model Router 4000, API 8642, and dashboard 18789 remain loopback-bound and are accessed only through an operator-controlled SSH tunnel where applicable.
 
 ## Rollback / Safety Plan
 

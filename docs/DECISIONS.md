@@ -27,3 +27,11 @@ No live router-pool modification is allowed before default routed-pool validatio
 ## D-007: GitHub-First Control Plane
 
 GitHub is the source of truth. The persistent runtime is a separate remote Ubuntu host; neither GitHub Actions nor the cloud coding workspace is the host. Status: accepted.
+
+## D-008: Locked Hetzner Runtime
+
+The baseline host is Hetzner Cloud CX43, x86_64, 8 shared vCPU, 16 GB RAM, 160 GB disk, Ubuntu 24.04, hostname `hydra-hermes-runtime-01`, preferred in `nbg1` with `fsn1` fallback, public IPv4 and IPv6, and no GPU. Status: accepted.
+
+## D-009: Private Management Plane
+
+Provider firewall SSH ingress is limited to approved operator IPv4/IPv6 CIDRs. Ports 4000, 8642, and 18789 are never public during baseline validation. Status: accepted.

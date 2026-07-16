@@ -1,11 +1,11 @@
 # Hydra Hermes Lab
 
-GitHub-first operational control repository for evaluating Hermes inside an NVIDIA NemoClaw/OpenShell sandbox on a separate Ubuntu Linux host.
+GitHub-first operational control repository for evaluating Hermes inside an NVIDIA NemoClaw/OpenShell sandbox on a dedicated Hetzner Cloud host.
 
 ## Status
 
 - Repository scaffold: ready
-- Remote runtime: not connected
+- Remote runtime: Hetzner CX43 target locked; not yet provisioned or connected
 - NemoClaw installation: not started
 - Baseline target: Hermes + NVIDIA Model Router
 - Sandbox: `hydra-hermes-lab`
@@ -18,7 +18,7 @@ GitHub-first operational control repository for evaluating Hermes inside an NVID
 ```text
 Cloud coding agent
   -> GitHub repository
-  -> remote Ubuntu host
+  -> Hetzner CX43 / Ubuntu 24.04 host
   -> NemoClaw host CLI
   -> OpenShell
      -> host-side credentials
@@ -39,7 +39,7 @@ This repository contains infrastructure definitions, safe operator scripts, vali
 
 ## Remote Host Flow
 
-1. Provision a single-user Ubuntu 24.04 host meeting [host requirements](infra/host-requirements.md).
+1. Provision the locked Hetzner CX43 target using [the provisioning checklist](infra/hetzner/PROVISIONING_CHECKLIST.md).
 2. Run `make static-check` locally or in CI.
 3. Run `scripts/remote-preflight.sh` on the selected host.
 4. Supply `NVIDIA_INFERENCE_API_KEY` through the approved host secret mechanism.
@@ -57,6 +57,10 @@ scripts/validate-runtime.sh
 ```
 
 Real runtime checks require the remote host. GitHub Actions intentionally does not simulate a passing NemoClaw runtime.
+
+## Locked Host
+
+`hydra-hermes-runtime-01` is a Hetzner Cloud CX43 in Nuremberg (`nbg1`), with Falkenstein (`fsn1`) as fallback: x86_64, 8 shared vCPU, 16 GB RAM, 160 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. Provider firewall input permits SSH only from approved operator CIDRs; ports 4000, 8642, and 18789 remain private and loopback-bound.
 
 ## Official Sources
 

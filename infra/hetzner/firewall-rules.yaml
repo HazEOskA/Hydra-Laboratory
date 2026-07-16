@@ -1,0 +1,33 @@
+api_version: hydra.osatech/v1
+kind: HetznerCloudFirewallPolicy
+
+metadata:
+  name: hydra-hermes-runtime-01
+
+apply_to:
+  label_selectors:
+    - project=hydra-hermes-lab
+    - role=runtime
+
+inbound:
+  - description: SSH from the approved operator IPv4 and IPv6 networks only
+    protocol: tcp
+    port: 22
+    source_cidrs:
+      - REQUIRED_OPERATOR_IPV4_CIDR
+      - REQUIRED_OPERATOR_IPV6_CIDR
+  - description: ICMP for IPv4 diagnostics and path MTU discovery
+    protocol: icmp
+    source_cidrs: [0.0.0.0/0]
+  - description: ICMPv6 diagnostics and neighbor/path MTU operation
+    protocol: icmp
+    source_cidrs: ["::/0"]
+
+# Hetzner Cloud Firewalls allow all outbound traffic when no outbound rule exists.
+# This is required during baseline for Ubuntu, Docker, NVIDIA, npm, and PyPI fetches.
+outbound: []
+
+must_not_be_public:
+  - 4000
+  - 8642
+  - 18789
