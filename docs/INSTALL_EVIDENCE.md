@@ -1,0 +1,28 @@
+# Install Evidence
+
+Status: NOT STARTED
+
+This file accepts sanitized evidence only.
+
+| Fact | Value |
+|---|---|
+| Documentation snapshot | NVIDIA/NemoClaw `24c73341394b84b887fbcfa9ec5028a7e6fadfb8` |
+| Installation date | pending |
+| Remote provider / host ID | pending; non-secret identifier only |
+| OS / architecture | pending |
+| CPU / RAM / disk | pending |
+| Docker | pending |
+| Node.js | pending |
+| Model Router Python | pending |
+| NemoClaw | pending |
+| OpenShell | pending |
+| Hermes CLI | pending |
+| Sandbox | `hydra-hermes-lab` |
+| Provider selector | `routed` |
+| Effective provider | pending |
+| Policy | `balanced` |
+| Web search | disabled |
+| Messaging / MCP / plugins | disabled |
+| Outcome | NOT STARTED |
+
+Do not paste environment dumps, raw logs, tokens, dashboard authentication material, or credential values here.

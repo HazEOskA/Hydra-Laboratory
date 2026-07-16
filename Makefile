@@ -1,0 +1,22 @@
+SHELL := /usr/bin/env bash
+
+.PHONY: static-check syntax-check docs-check secret-scan preflight validate
+
+static-check: syntax-check docs-check secret-scan
+
+syntax-check:
+	@for script in scripts/*.sh; do bash -n "$$script"; done
+
+docs-check:
+	@for file in README.md docs/ARCHITECTURE_LOCK_v0.1.md docs/DEPLOYMENT_PLAN.md docs/SECURITY_MODEL.md docs/VALIDATION_PLAN.md docs/DECISIONS.md docs/INSTALL_EVIDENCE.md docs/ROLLBACK.md infra/README.md infra/host-requirements.md; do test -s "$$file" || { echo "Missing or empty: $$file"; exit 1; }; done
+	@grep -q 'hydra-hermes-lab' README.md
+	@grep -q 'NVIDIA Model Router' docs/ARCHITECTURE_LOCK_v0.1.md
+
+secret-scan:
+	@./scripts/secret-scan.sh
+
+preflight:
+	@./scripts/remote-preflight.sh
+
+validate:
+	@./scripts/validate-runtime.sh

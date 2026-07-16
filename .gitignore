@@ -1,0 +1,15 @@
+.env
+.env.*
+*.key
+*.pem
+*.token
+secrets/
+.private/
+.tmp/
+logs/
+node_modules/
+__pycache__/
+*.pyc
+*.log
+nemoclaw-debug*.tar.gz
+install-evidence.local.md
