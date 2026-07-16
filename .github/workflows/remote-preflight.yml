@@ -139,15 +139,6 @@ jobs:
             echo '## Hydra runtime — preflight BLOCKED before report generation' >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Upload sanitized report
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: hydra-remote-preflight
-          path: ${{ runner.temp }}/hydra-remote-preflight.txt
-          if-no-files-found: warn
-          retention-days: 7
-
       - name: Remove ephemeral SSH material
         if: ${{ always() }}
         shell: bash
@@ -158,6 +149,15 @@ jobs:
           rm -f -- "$ssh_dir/id_hydra_runtime" "$ssh_dir/known_hosts"
           rmdir -- "$ssh_dir" 2>/dev/null || true
           rm -f -- "$RUNNER_TEMP/hydra-remote-preflight.raw" "$RUNNER_TEMP/hydra-remote-preflight.ssh-error"
+
+      - name: Upload sanitized report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hydra-remote-preflight
+          path: ${{ runner.temp }}/hydra-remote-preflight.txt
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Enforce READY result
         if: ${{ always() }}
