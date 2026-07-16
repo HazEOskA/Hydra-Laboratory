@@ -55,4 +55,4 @@ APR validation is declarative: this repository contains no reference that execut
 
 ## Provider-Control Gate
 
-Before runtime installation, verify in the Hetzner control plane that the exact firewall is attached, inbound SSH contains only approved operator CIDRs, both public IP families exist, deletion protection is enabled for the server, and the selected image/location/plan match `infra/hetzner/server-spec.yaml`. Do not export provider account data into repository evidence.
+Before runtime installation, verify in the Hetzner control plane that the exact firewall is attached, no public SSH rule exists, both public IP families exist, deletion protection is enabled for the server, and the selected image/location/plan match `infra/hetzner/server-spec.yaml`. Separately verify private Tailscale reachability and policy. Do not export provider or tailnet account data into repository evidence.

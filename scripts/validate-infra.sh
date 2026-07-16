@@ -27,16 +27,12 @@ require_text "$spec" "gpu_required: false"
 require_text "$spec" "sandbox: hydra-hermes-lab"
 require_text "$spec" "inference_provider: routed"
 
-require_text "$firewall" "port: 22"
-require_text "$firewall" "REQUIRED_OPERATOR_IPV4_CIDR"
-require_text "$firewall" "REQUIRED_OPERATOR_IPV6_CIDR"
-ssh_rule="$(awk '/description: SSH /,/description: ICMP /' "$firewall")"
-if grep -Eq '0\.0\.0\.0/0|::/0' <<<"$ssh_rule"; then
-  fail "SSH rule must never allow a public wildcard CIDR"
+if awk '/^inbound:/,/^outbound:/' "$firewall" | grep -Eq 'port:[[:space:]]*22'; then
+  fail "public provider firewall must not allow SSH"
 else
-  pass "SSH rule contains no public wildcard CIDR"
+  pass "public provider firewall has no SSH allow rule"
 fi
-for port in 4000 8642 18789; do
+for port in 22 4000 8642 18789; do
   require_text "$firewall" "- $port"
   if awk '/^inbound:/,/^outbound:/' "$firewall" | grep -Eq "port:[[:space:]]*$port"; then
     fail "port $port must not have an inbound allow rule"
@@ -51,6 +47,7 @@ require_text "$cloud_init" "PasswordAuthentication no"
 require_text "$cloud_init" "AuthenticationMethods publickey"
 require_text "$cloud_init" "AllowTcpForwarding local"
 require_text "$cloud_init" "ufw default deny incoming"
+require_text "$cloud_init" "ufw allow in on tailscale0 to any port 22 proto tcp"
 require_text "$cloud_init" "systemctl enable --now docker"
 
 bytes="$(wc -c < "$cloud_init")"

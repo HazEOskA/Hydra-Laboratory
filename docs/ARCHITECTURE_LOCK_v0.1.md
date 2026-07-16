@@ -42,7 +42,7 @@ The host is exactly 8 shared vCPU, 16 GB RAM and 160 GB disk in `nbg1` (fallback
 ## Execution Flow
 
 1. Validate repository statically.
-2. Provision the reviewed Hetzner CX43 with an approved public SSH key and CIDR-restricted provider firewall.
+2. Provision the reviewed Hetzner CX43 with an approved public SSH key, a provider firewall with no public SSH rule, and a separately approved private Tailscale path.
 3. Run remote preflight without mutation.
 4. Review exact write paths and elevation needs.
 5. Inject `NVIDIA_INFERENCE_API_KEY` through the host environment or approved secret store.
@@ -56,7 +56,7 @@ Static CI proves script syntax, required documentation, YAML parseability, and a
 
 ## Deployment / Runtime Flow
 
-There is no web deployment. The remote host runs one sandbox named `hydra-hermes-lab`. Provider firewall input exposes only key-only SSH from approved operator CIDRs. Model Router 4000, API 8642, and dashboard 18789 remain loopback-bound and are accessed only through an operator-controlled SSH tunnel where applicable.
+There is no web deployment. The remote host runs one sandbox named `hydra-hermes-lab`. The provider firewall exposes no SSH rule; automation reaches key-only SSH through Tailscale. Model Router 4000, API 8642, and dashboard 18789 remain loopback-bound and are accessed only through an operator-controlled private tunnel where applicable.
 
 ## Rollback / Safety Plan
 

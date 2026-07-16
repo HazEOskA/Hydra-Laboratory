@@ -58,11 +58,11 @@ scripts/validate-runtime.sh
 
 Real runtime checks require the remote host. GitHub Actions intentionally does not simulate a passing NemoClaw runtime.
 
-The only repository-defined remote bridge is the manually dispatched [remote preflight workflow](docs/REMOTE_PREFLIGHT_BRIDGE.md). It is protected by the `hydra-runtime` GitHub Environment and performs read-only inspection over strict host-key-verified SSH. It is never triggered by a push or pull request.
+The only repository-defined remote bridge is the manually dispatched [remote preflight workflow](docs/REMOTE_PREFLIGHT_BRIDGE.md). The private repository uses repository secrets, Tailscale workload identity federation (OIDC), and strict host-key-verified SSH. It is never triggered by a push or pull request and refuses non-`main` dispatches.
 
 ## Locked Host
 
-`hydra-hermes-runtime-01` is a Hetzner Cloud CX43 in Nuremberg (`nbg1`), with Falkenstein (`fsn1`) as fallback: x86_64, 8 shared vCPU, 16 GB RAM, 160 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. Provider firewall input permits SSH only from approved operator CIDRs; ports 4000, 8642, and 18789 remain private and loopback-bound.
+`hydra-hermes-runtime-01` is a Hetzner Cloud CX43 in Nuremberg (`nbg1`), with Falkenstein (`fsn1`) as fallback: x86_64, 8 shared vCPU, 16 GB RAM, 160 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. The provider firewall exposes no SSH rule; workflow access uses the private Tailscale network. Ports 4000, 8642, and 18789 remain private and loopback-bound.
 
 ## Official Sources
 

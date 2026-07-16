@@ -10,12 +10,6 @@ apply_to:
     - role=runtime
 
 inbound:
-  - description: SSH from the approved operator IPv4 and IPv6 networks only
-    protocol: tcp
-    port: 22
-    source_cidrs:
-      - REQUIRED_OPERATOR_IPV4_CIDR
-      - REQUIRED_OPERATOR_IPV6_CIDR
   - description: ICMP for IPv4 diagnostics and path MTU discovery
     protocol: icmp
     source_cidrs: [0.0.0.0/0]
@@ -28,6 +22,7 @@ inbound:
 outbound: []
 
 must_not_be_public:
+  - 22
   - 4000
   - 8642
   - 18789

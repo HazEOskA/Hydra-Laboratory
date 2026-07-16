@@ -6,9 +6,9 @@ Hetzner Cloud CX43 `hydra-hermes-runtime-01`: x86_64, 8 shared vCPU, 16 GB RAM, 
 
 ## Phases
 
-1. In the operator's authenticated Hetzner Cloud session, create the exact server from `infra/hetzner/server-spec.yaml`, select an already-approved public SSH key, attach the CIDR-restricted firewall, and supply `infra/cloud-init.yaml` as user data. Do not put private keys or API tokens in user data.
-2. Wait for cloud-init completion and any required reboot. Confirm the `hydra` account accepts the selected public key before ending the provisioning session.
-3. Keep the provider firewall attached. It permits SSH only from approved operator CIDRs; no public ingress exists for ports 4000, 8642, or 18789.
+1. In the operator's authenticated Hetzner Cloud session, create the exact server from `infra/hetzner/server-spec.yaml`, select an already-approved public SSH key, attach the reviewed firewall, and supply `infra/cloud-init.yaml` as user data. Do not put private keys or API tokens in user data.
+2. Wait for cloud-init completion and any required reboot. Establish the separately approved host-side Tailscale membership, then confirm the `hydra` account accepts the selected public key through the private path.
+3. Keep the provider firewall attached. It has no public ingress for ports 22, 4000, 8642, or 18789.
 4. Run `scripts/remote-preflight.sh`; do not continue on a BLOCK.
 5. Review host writes: `~/.nemoclaw/`, `~/.local/state/nemoclaw/`, OpenShell state, Docker images/volumes, and host Model Router virtual environment/state created by NemoClaw.
 6. Make the NVIDIA credential available only to the approved process environment.
@@ -38,7 +38,7 @@ SSH is key-only as `hydra`; root login, password login, keyboard-interactive log
 
 Repository preparation does not create the server. Provisioning requires an authenticated Hetzner control-plane session and an already-approved SSH public key plus operator IPv4/IPv6 CIDRs. No Hetzner API token, private key, NVIDIA key, or password belongs in chat, Git, cloud-init, or command arguments.
 
-The approved CI bridge is `.github/workflows/remote-preflight.yml`. It can be started only with `workflow_dispatch`, waits at the protected `hydra-runtime` Environment approval gate, and runs only the read-only report mode. A green report does not authorize installation or onboarding; those remain separate approval gates.
+The approved CI bridge is `.github/workflows/remote-preflight.yml`. It can be started only with `workflow_dispatch` from `main`, joins the private tailnet through GitHub OIDC, and runs only the read-only report mode. Private-repository compatibility uses repository secrets; no required-reviewer protection is claimed. A green report does not authorize installation or onboarding; those remain separate approval gates.
 
 ## Official References
 

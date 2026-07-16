@@ -125,7 +125,7 @@ write_files:
       ufw --force reset
       ufw default deny incoming
       ufw default allow outgoing
-      ufw allow 22/tcp comment 'SSH; Hetzner Cloud Firewall restricts source CIDRs'
+      ufw allow in on tailscale0 to any port 22 proto tcp comment 'SSH over Tailscale only'
       ufw --force enable
 
       systemctl enable --now fail2ban

@@ -23,9 +23,9 @@ The server must be created with an existing SSH public key selected from the Het
 
 ## Firewall
 
-Create and attach a Hetzner Cloud Firewall from `firewall-rules.yaml` before treating the host as ready. Replace both `REQUIRED_OPERATOR_*_CIDR` markers through the Hetzner control plane with the operator's current trusted public networks. Do not replace them in Git.
+Create and attach a Hetzner Cloud Firewall from `firewall-rules.yaml` before treating the host as ready. The final-state policy contains no public SSH rule. GitHub Actions reaches the host through a separately approved private Tailscale path.
 
-Inbound TCP is limited to SSH port 22 from those CIDRs. ICMP and ICMPv6 remain available for diagnostics and path MTU operation. No inbound rule exists for Model Router 4000, Hermes API 8642, or dashboard 18789.
+ICMP and ICMPv6 remain available for diagnostics and path MTU operation. No public inbound rule exists for SSH 22, Model Router 4000, Hermes API 8642, or dashboard 18789.
 
 Hetzner Cloud Firewalls are stateful. With no outbound rules, outbound traffic remains allowed; response traffic to host-originated connections is admitted automatically.
 

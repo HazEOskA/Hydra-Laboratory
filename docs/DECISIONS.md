@@ -34,4 +34,12 @@ The baseline host is Hetzner Cloud CX43, x86_64, 8 shared vCPU, 16 GB RAM, 160 G
 
 ## D-009: Private Management Plane
 
-Provider firewall SSH ingress is limited to approved operator IPv4/IPv6 CIDRs. Ports 4000, 8642, and 18789 are never public during baseline validation. Status: accepted.
+The final-state provider firewall exposes no SSH rule. GitHub Actions reaches the host through Tailscale; ports 4000, 8642, and 18789 are never public during baseline validation. Status: accepted.
+
+## D-010: Private Repository Credential Scope
+
+The private repository uses repository secrets rather than GitHub Environment secrets so the bridge remains compatible without assuming GitHub Pro, Team, or Enterprise features. Required-reviewer protection is not claimed. Status: accepted.
+
+## D-011: Tailscale OIDC Transport
+
+GitHub-hosted ephemeral runners join the private tailnet through workload identity federation. The bridge uses `TS_OAUTH_CLIENT_ID`, `TS_AUDIENCE`, and an operator-configured tag set without a reusable Tailscale OAuth secret or auth key. Public SSH remains closed. Status: accepted.

@@ -14,7 +14,8 @@ require_text() {
 if [[ -s "$workflow" ]]; then pass "$workflow exists"; else fail "$workflow is missing"; fi
 require_text "$workflow" "workflow_dispatch:"
 require_text "$workflow" "contents: read"
-require_text "$workflow" "environment: hydra-runtime"
+require_text "$workflow" "id-token: write"
+require_text "$workflow" "if: github.ref == 'refs/heads/main'"
 
 if grep -Eq '^[[:space:]]+(push|pull_request|schedule|workflow_call):' "$workflow"; then
   fail "remote workflow contains a forbidden automatic trigger"
@@ -23,17 +24,33 @@ else
 fi
 
 permission_block="$(awk '/^permissions:/{capture=1; next} capture && /^[^ ]/{exit} capture{print}' "$workflow")"
-if [[ "$(grep -Ec '^[[:space:]]+[a-z-]+:' <<<"$permission_block")" -eq 1 ]] \
-  && grep -Eq '^[[:space:]]+contents:[[:space:]]+read$' <<<"$permission_block"; then
+if [[ "$(grep -Ec '^[[:space:]]+[a-z-]+:' <<<"$permission_block")" -eq 2 ]] \
+  && grep -Eq '^[[:space:]]+contents:[[:space:]]+read$' <<<"$permission_block" \
+  && grep -Eq '^[[:space:]]+id-token:[[:space:]]+write$' <<<"$permission_block"; then
   pass "workflow permissions are minimal"
 else
-  fail "workflow permissions contain more than contents: read"
+  fail "workflow permissions must be exactly contents: read and id-token: write"
 fi
 
-for secret in HYDRA_SSH_HOST HYDRA_SSH_USER HYDRA_SSH_PRIVATE_KEY HYDRA_SSH_KNOWN_HOSTS; do
+for secret in HYDRA_SSH_HOST HYDRA_SSH_USER HYDRA_SSH_PRIVATE_KEY HYDRA_SSH_KNOWN_HOSTS TS_OAUTH_CLIENT_ID; do
   require_text "$workflow" "secrets.$secret"
 done
 require_text "$workflow" "vars.HYDRA_SSH_PORT || '22'"
+require_text "$workflow" "vars.TS_AUDIENCE"
+require_text "$workflow" "vars.TS_TAGS"
+require_text "$workflow" "tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888"
+
+if grep -Eq '^[[:space:]]+environment:' "$workflow"; then
+  fail "private-repository workflow must not depend on a GitHub Environment"
+else
+  pass "workflow uses private-repository-compatible repository secrets"
+fi
+
+if grep -Eq 'oauth-secret:|TS_OAUTH_SECRET|authkey:' "$workflow"; then
+  fail "Tailscale must use OIDC without a reusable OAuth secret or auth key"
+else
+  pass "Tailscale authentication is OIDC-only"
+fi
 
 for option in \
   'BatchMode=yes' \

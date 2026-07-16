@@ -22,20 +22,22 @@ Use the dedicated Hetzner single-user host and `hydra` account. Docker group mem
 
 ## Network Controls
 
-- The Hetzner stateful firewall permits inbound TCP/22 only from separately approved operator IPv4 and IPv6 CIDRs.
+- The Hetzner stateful firewall has no public inbound TCP/22 rule; workflow SSH travels through Tailscale.
 - ICMP/ICMPv6 remains allowed for network operation and diagnostics.
 - No provider outbound rules means outbound traffic follows Hetzner's default allow behavior; OpenShell `balanced` policy separately constrains sandbox traffic.
 - Ports 4000, 8642, and 18789 must bind only to `127.0.0.1` or `::1`; UFW is defense in depth, not a substitute for correct Docker port binding.
 
 ## Host Provisioning Secrets
 
-Only a public SSH key may be selected during provisioning. Hetzner API tokens, SSH private keys, account passwords, `NVIDIA_INFERENCE_API_KEY`, rendered user data, and generated server state are excluded from Git and chat. Required firewall CIDRs are applied in the provider control plane and are not committed as personal network data.
+Only a public SSH key may be selected during provisioning. Hetzner API tokens, SSH private keys, account passwords, `NVIDIA_INFERENCE_API_KEY`, rendered user data, and generated server state are excluded from Git and chat. Provider firewall and Tailscale policy are configured outside the repository without committing private network data.
 
 ## GitHub Actions SSH Bridge
 
-The `hydra-runtime` GitHub Environment stores a dedicated, non-reused Hydra SSH identity and reviewed `known_hosts` record. Required reviewers provide the manual release gate. The workflow uses the system SSH client with strict host-key checking, batch-only public-key authentication, no agent, and no forwarding. Ephemeral key material is mode `600` and is removed under `always()`.
+The private repository stores a dedicated, non-reused Hydra SSH identity and reviewed `known_hosts` record as repository secrets. Tailscale uses GitHub workload identity federation with `id-token: write`, a federated client ID, repository-configured audience, and no reusable OAuth client secret. The workflow uses the system SSH client with strict host-key checking, batch-only public-key authentication, no agent, and no forwarding. Ephemeral key material is mode `600` and is removed under `always()`.
 
-The bridge cannot change the Hetzner firewall. GitHub-hosted runner egress is not a single permanent address, so SSH must remain blocked until a separately reviewed runner source is admitted. Never solve this by allowing port 22 from the entire Internet.
+The GitHub-hosted runner is ephemeral and reaches the host only through the private tailnet. Public SSH remains closed; ports 22, 4000, 8642, and 18789 must not receive public Hetzner firewall rules. The bridge cannot change either the Hetzner firewall or tailnet policy.
+
+Repository secrets are used because they work for private repositories across current non-legacy GitHub plans. GitHub Environment secrets for private repositories require Pro, Team, or Enterprise. Required reviewers for private-repository environments must not be represented as active without a plan that actually supplies that protection; this baseline makes no such claim.
 
 ## Sandbox Proof
 

@@ -71,7 +71,7 @@ Do not add `--destroy-user-data` unless losing registry metadata and backups is 
 
 ## Hetzner Host Rollback
 
-1. Preserve the provider firewall and SSH access while diagnosing.
+1. Preserve the provider firewall and private Tailscale SSH path while diagnosing; do not open public SSH.
 2. Stop the Hermes sandbox and collect redacted diagnostics.
 3. Create a NemoClaw snapshot; optionally create a private Hetzner server snapshot.
 4. Rebuild only after explicit approval and only with the same Ubuntu 24.04 image, public key, firewall, and reviewed cloud-init.
