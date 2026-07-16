@@ -38,6 +38,8 @@ SSH is key-only as `hydra`; root login, password login, keyboard-interactive log
 
 Repository preparation does not create the server. Provisioning requires an authenticated Hetzner control-plane session and an already-approved SSH public key plus operator IPv4/IPv6 CIDRs. No Hetzner API token, private key, NVIDIA key, or password belongs in chat, Git, cloud-init, or command arguments.
 
+The approved CI bridge is `.github/workflows/remote-preflight.yml`. It can be started only with `workflow_dispatch`, waits at the protected `hydra-runtime` Environment approval gate, and runs only the read-only report mode. A green report does not authorize installation or onboarding; those remain separate approval gates.
+
 ## Official References
 
 - https://docs.nvidia.com/nemoclaw/latest/user-guide/hermes/get-started/quickstart.md

@@ -1,0 +1,170 @@
+name: remote preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remote-preflight:
+    name: Read-only Hetzner preflight
+    runs-on: ubuntu-latest
+    environment: hydra-runtime
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out control repository
+        uses: actions/checkout@v4
+
+      - name: Validate SSH inputs and materialize ephemeral files
+        env:
+          HYDRA_SSH_HOST: ${{ secrets.HYDRA_SSH_HOST }}
+          HYDRA_SSH_USER: ${{ secrets.HYDRA_SSH_USER }}
+          HYDRA_SSH_PRIVATE_KEY: ${{ secrets.HYDRA_SSH_PRIVATE_KEY }}
+          HYDRA_SSH_KNOWN_HOSTS: ${{ secrets.HYDRA_SSH_KNOWN_HOSTS }}
+          HYDRA_SSH_PORT: ${{ vars.HYDRA_SSH_PORT || '22' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          : "${HYDRA_SSH_HOST:?HYDRA_SSH_HOST is required}"
+          : "${HYDRA_SSH_USER:?HYDRA_SSH_USER is required}"
+          : "${HYDRA_SSH_PRIVATE_KEY:?HYDRA_SSH_PRIVATE_KEY is required}"
+          : "${HYDRA_SSH_KNOWN_HOSTS:?HYDRA_SSH_KNOWN_HOSTS is required}"
+          [[ "$HYDRA_SSH_USER" == hydra ]] || { echo 'BLOCKED: SSH user must be hydra.' >&2; exit 1; }
+          [[ "$HYDRA_SSH_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ ]] || { echo 'BLOCKED: invalid SSH host format.' >&2; exit 1; }
+          [[ "$HYDRA_SSH_PORT" =~ ^[0-9]+$ ]] || { echo 'BLOCKED: invalid SSH port.' >&2; exit 1; }
+          (( HYDRA_SSH_PORT >= 1 && HYDRA_SSH_PORT <= 65535 )) || { echo 'BLOCKED: invalid SSH port range.' >&2; exit 1; }
+
+          ssh_dir="${RUNNER_TEMP:?}/hydra-runtime-ssh"
+          [[ "$ssh_dir" == "$RUNNER_TEMP/hydra-runtime-ssh" ]]
+          install -d -m 700 "$ssh_dir"
+          printf '%s\n' "$HYDRA_SSH_PRIVATE_KEY" > "$ssh_dir/id_hydra_runtime"
+          printf '%s\n' "$HYDRA_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/id_hydra_runtime" "$ssh_dir/known_hosts"
+
+          timeout 5 ssh-keygen -y -f "$ssh_dir/id_hydra_runtime" </dev/null >/dev/null 2>&1 \
+            || { echo 'BLOCKED: dedicated SSH key is invalid or interactive.' >&2; exit 1; }
+
+          lookup="$HYDRA_SSH_HOST"
+          [[ "$HYDRA_SSH_PORT" == 22 ]] || lookup="[$HYDRA_SSH_HOST]:$HYDRA_SSH_PORT"
+          ssh-keygen -F "$lookup" -f "$ssh_dir/known_hosts" >/dev/null 2>&1 \
+            || { echo 'BLOCKED: approved known_hosts entry does not match the target.' >&2; exit 1; }
+
+      - name: Execute read-only remote preflight
+        env:
+          HYDRA_SSH_HOST: ${{ secrets.HYDRA_SSH_HOST }}
+          HYDRA_SSH_USER: ${{ secrets.HYDRA_SSH_USER }}
+          HYDRA_SSH_PORT: ${{ vars.HYDRA_SSH_PORT || '22' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ssh_dir="${RUNNER_TEMP:?}/hydra-runtime-ssh"
+          raw_report="$RUNNER_TEMP/hydra-remote-preflight.raw"
+          report="$RUNNER_TEMP/hydra-remote-preflight.txt"
+          ssh_error="$RUNNER_TEMP/hydra-remote-preflight.ssh-error"
+
+          set +e
+          env -u SSH_AUTH_SOCK ssh \
+            -F /dev/null \
+            -a \
+            -p "$HYDRA_SSH_PORT" \
+            -i "$ssh_dir/id_hydra_runtime" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$ssh_dir/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null \
+            -o IdentitiesOnly=yes \
+            -o IdentityAgent=none \
+            -o ForwardAgent=no \
+            -o ClearAllForwardings=yes \
+            -o PermitLocalCommand=no \
+            -o PasswordAuthentication=no \
+            -o KbdInteractiveAuthentication=no \
+            -o PreferredAuthentications=publickey \
+            -o ConnectTimeout=20 \
+            -- "$HYDRA_SSH_USER@$HYDRA_SSH_HOST" \
+            'bash -s -- --github-report' \
+            < scripts/remote-preflight.sh >"$raw_report" 2>"$ssh_error"
+          set -e
+
+          if grep -Fqx 'REMOTE SSH: PASS' "$raw_report" 2>/dev/null; then
+            awk '
+              /^(REMOTE SSH|HOSTNAME|PUBLIC IP|OS|ARCHITECTURE|CPU|RAM|DISK|FIREWALL|DOCKER|USER HYDRA|REPOSITORY ACCESS|NEMOCLAW|NEMOHERMES|OPENSHELL|PORT 4000|PORT 8642|PORT 18789|APR UNTOUCHED|OVERALL):/ {
+                if ($0 ~ /^PUBLIC IP:/) print "PUBLIC IP: REDACTED"; else print
+              }
+            ' "$raw_report" > "$report"
+          else
+            cat > "$report" <<'REPORT'
+          REMOTE SSH: FAIL
+          HOSTNAME: UNVERIFIED
+          PUBLIC IP: REDACTED
+          OS: UNVERIFIED
+          ARCHITECTURE: UNVERIFIED
+          CPU: UNVERIFIED
+          RAM: UNVERIFIED
+          DISK: UNVERIFIED
+          FIREWALL: UNVERIFIED
+          DOCKER: UNVERIFIED
+          USER HYDRA: UNVERIFIED
+          REPOSITORY ACCESS: UNVERIFIED
+          NEMOCLAW: UNVERIFIED
+          NEMOHERMES: UNVERIFIED
+          OPENSHELL: UNVERIFIED
+          PORT 4000: UNVERIFIED
+          PORT 8642: UNVERIFIED
+          PORT 18789: UNVERIFIED
+          APR UNTOUCHED: PASS
+          OVERALL: BLOCKED
+          REPORT
+          fi
+
+          [[ "$(wc -l < "$report")" -eq 20 ]] || { echo 'BLOCKED: sanitized report is incomplete.' >&2; exit 1; }
+      - name: Publish sanitized job summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/hydra-remote-preflight.txt"
+          if [[ -s "$report" ]]; then
+            {
+              echo '## Hydra runtime — remote preflight'
+              echo '```text'
+              cat "$report"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '## Hydra runtime — preflight BLOCKED before report generation' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload sanitized report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hydra-remote-preflight
+          path: ${{ runner.temp }}/hydra-remote-preflight.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Remove ephemeral SSH material
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ssh_dir="${RUNNER_TEMP:?}/hydra-runtime-ssh"
+          [[ "$ssh_dir" == "$RUNNER_TEMP/hydra-runtime-ssh" ]]
+          rm -f -- "$ssh_dir/id_hydra_runtime" "$ssh_dir/known_hosts"
+          rmdir -- "$ssh_dir" 2>/dev/null || true
+          rm -f -- "$RUNNER_TEMP/hydra-remote-preflight.raw" "$RUNNER_TEMP/hydra-remote-preflight.ssh-error"
+
+      - name: Enforce READY result
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/hydra-remote-preflight.txt"
+          [[ -s "$report" ]] || { echo 'BLOCKED: no sanitized report was generated.' >&2; exit 1; }
+          grep -Fqx 'REMOTE SSH: PASS' "$report" || { echo 'BLOCKED: SSH preflight did not connect.' >&2; exit 1; }
+          grep -Fqx 'OVERALL: READY' "$report" || { echo 'BLOCKED: remote host preflight is not ready.' >&2; exit 1; }

@@ -31,6 +31,12 @@ Use the dedicated Hetzner single-user host and `hydra` account. Docker group mem
 
 Only a public SSH key may be selected during provisioning. Hetzner API tokens, SSH private keys, account passwords, `NVIDIA_INFERENCE_API_KEY`, rendered user data, and generated server state are excluded from Git and chat. Required firewall CIDRs are applied in the provider control plane and are not committed as personal network data.
 
+## GitHub Actions SSH Bridge
+
+The `hydra-runtime` GitHub Environment stores a dedicated, non-reused Hydra SSH identity and reviewed `known_hosts` record. Required reviewers provide the manual release gate. The workflow uses the system SSH client with strict host-key checking, batch-only public-key authentication, no agent, and no forwarding. Ephemeral key material is mode `600` and is removed under `always()`.
+
+The bridge cannot change the Hetzner firewall. GitHub-hosted runner egress is not a single permanent address, so SSH must remain blocked until a separately reviewed runner source is admitted. Never solve this by allowing port 22 from the entire Internet.
+
 ## Sandbox Proof
 
 Validation must prove that `NVIDIA_INFERENCE_API_KEY` is unset inside `hydra-hermes-lab`. It must also prove that the active route is `routed`/`nvidia-router` and that inference flows through `https://inference.local/v1`.

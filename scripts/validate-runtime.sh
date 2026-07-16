@@ -41,6 +41,8 @@ nemohermes "$SANDBOX" exec --no-stdin -- sh -lc \
   && pass "inference.local route responds inside sandbox" \
   || fail "inference.local route did not respond inside sandbox"
 
+# The expression must expand inside the sandbox, not in this host shell.
+# shellcheck disable=SC2016
 nemohermes "$SANDBOX" exec --no-stdin -- sh -lc 'test -z "${NVIDIA_INFERENCE_API_KEY:-}"' \
   && pass "raw NVIDIA key unavailable inside sandbox" \
   || fail "raw NVIDIA key appears available inside sandbox"

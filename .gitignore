@@ -17,3 +17,6 @@ install-evidence.local.md
 *.auto.tfvars
 infra/hetzner/rendered/
 cloud-init-output.log
+.ssh/
+*.known_hosts
+id_hydra_runtime

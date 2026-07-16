@@ -15,6 +15,154 @@ warn() { printf 'WARN  %s\n' "$*"; warnings=$((warnings + 1)); }
 block() { printf 'BLOCK %s\n' "$*"; blocks=$((blocks + 1)); }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+github_report() {
+  local overall="READY"
+  local hostname_value="UNKNOWN"
+  local os_value="UNKNOWN"
+  local arch_value="UNKNOWN"
+  local cpu_value="UNKNOWN"
+  local ram_value="UNKNOWN"
+  local disk_value="UNKNOWN"
+  local firewall_value="UNVERIFIED"
+  local docker_value="UNAVAILABLE"
+  local user_value="FAIL"
+  local repository_value="FAIL"
+  local nemoclaw_value="NOT INSTALLED"
+  local nemohermes_value="NOT INSTALLED"
+  local openshell_value="NOT INSTALLED"
+  local port_4000="UNVERIFIED"
+  local port_8642="UNVERIFIED"
+  local port_18789="UNVERIFIED"
+  local repo_path="$HOME/hydra-hermes-lab"
+  local repo_remote=""
+
+  hostname_value="$(hostname -s 2>/dev/null || printf UNKNOWN)"
+  if [[ "$hostname_value" != "$EXPECTED_HOSTNAME" ]]; then
+    hostname_value="UNEXPECTED"
+    overall="BLOCKED"
+  fi
+
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    os_value="${PRETTY_NAME:-UNKNOWN}"
+    [[ "${ID:-}" == ubuntu && "${VERSION_ID:-}" == 24.04 ]] || overall="BLOCKED"
+  else
+    overall="BLOCKED"
+  fi
+
+  arch_value="$(uname -m 2>/dev/null || printf UNKNOWN)"
+  [[ "$arch_value" == x86_64 ]] || overall="BLOCKED"
+
+  cpu_value="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf UNKNOWN)"
+  [[ "$cpu_value" == 8 ]] || overall="BLOCKED"
+
+  if [[ -r /proc/meminfo ]]; then
+    ram_kib="$(awk '/MemTotal:/ {print $2}' /proc/meminfo)"
+    ram_value="$((ram_kib / 1024 / 1024)) GiB"
+    (( ram_kib >= MIN_RAM_KIB )) || overall="BLOCKED"
+  else
+    overall="BLOCKED"
+  fi
+
+  if df -Pk / >/dev/null 2>&1; then
+    root_total_kib="$(df -Pk / | awk 'NR==2 {print $2}')"
+    root_free_kib="$(df -Pk / | awk 'NR==2 {print $4}')"
+    disk_value="$((root_total_kib / 1024 / 1024)) GiB total, $((root_free_kib / 1024 / 1024)) GiB free"
+    (( root_total_kib >= MIN_ROOT_DISK_KIB && root_free_kib >= MIN_FREE_DISK_KIB )) || overall="BLOCKED"
+  else
+    overall="BLOCKED"
+  fi
+
+  if command -v systemctl >/dev/null 2>&1 \
+    && [[ "$(systemctl is-active ufw 2>/dev/null || true)" == active ]] \
+    && [[ -r /etc/ufw/ufw.conf ]] \
+    && grep -Eq '^ENABLED=yes' /etc/ufw/ufw.conf; then
+    firewall_value="UFW ACTIVE; PROVIDER POLICY OUTSIDE SSH SCOPE"
+  else
+    firewall_value="INACTIVE OR UNVERIFIED"
+    overall="BLOCKED"
+  fi
+
+  if command -v docker >/dev/null 2>&1 \
+    && [[ "$(systemctl is-active docker 2>/dev/null || true)" == active ]] \
+    && docker info >/dev/null 2>&1; then
+    docker_value="ACTIVE AND ACCESSIBLE"
+  else
+    overall="BLOCKED"
+  fi
+
+  if [[ "$(id -un 2>/dev/null || true)" == hydra ]] && id hydra >/dev/null 2>&1; then
+    user_value="PASS"
+  else
+    overall="BLOCKED"
+  fi
+
+  if [[ -r "$repo_path/.git/config" ]] && command -v git >/dev/null 2>&1; then
+    repo_remote="$(git -C "$repo_path" remote get-url origin 2>/dev/null || true)"
+    case "$repo_remote" in
+      https://github.com/HazEOskA/hydra-hermes-lab.git|git@github.com:HazEOskA/hydra-hermes-lab.git)
+        repository_value="PASS"
+        ;;
+      *)
+        overall="BLOCKED"
+        ;;
+    esac
+  else
+    overall="BLOCKED"
+  fi
+
+  command -v nemoclaw >/dev/null 2>&1 && nemoclaw_value="INSTALLED"
+  command -v nemohermes >/dev/null 2>&1 && nemohermes_value="INSTALLED"
+  command -v openshell >/dev/null 2>&1 && openshell_value="INSTALLED"
+
+  if command -v ss >/dev/null 2>&1; then
+    for port in 4000 8642 18789; do
+      port_state="AVAILABLE"
+      if ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "(^|:)${port}$"; then
+        port_state="OCCUPIED"
+        overall="BLOCKED"
+      fi
+      case "$port" in
+        4000) port_4000="$port_state" ;;
+        8642) port_8642="$port_state" ;;
+        18789) port_18789="$port_state" ;;
+      esac
+    done
+  else
+    overall="BLOCKED"
+  fi
+
+  printf 'REMOTE SSH: PASS\n'
+  printf 'HOSTNAME: %s\n' "$hostname_value"
+  printf 'PUBLIC IP: REDACTED\n'
+  printf 'OS: %s\n' "$os_value"
+  printf 'ARCHITECTURE: %s\n' "$arch_value"
+  printf 'CPU: %s\n' "$cpu_value"
+  printf 'RAM: %s\n' "$ram_value"
+  printf 'DISK: %s\n' "$disk_value"
+  printf 'FIREWALL: %s\n' "$firewall_value"
+  printf 'DOCKER: %s\n' "$docker_value"
+  printf 'USER HYDRA: %s\n' "$user_value"
+  printf 'REPOSITORY ACCESS: %s\n' "$repository_value"
+  printf 'NEMOCLAW: %s\n' "$nemoclaw_value"
+  printf 'NEMOHERMES: %s\n' "$nemohermes_value"
+  printf 'OPENSHELL: %s\n' "$openshell_value"
+  printf 'PORT 4000: %s\n' "$port_4000"
+  printf 'PORT 8642: %s\n' "$port_8642"
+  printf 'PORT 18789: %s\n' "$port_18789"
+  printf 'APR UNTOUCHED: PASS\n'
+  printf 'OVERALL: %s\n' "$overall"
+
+  [[ "$overall" == READY ]]
+}
+
+if [[ "${1:-}" == --github-report ]]; then
+  [[ $# -eq 1 ]] || { printf 'Invalid report arguments.\n' >&2; exit 2; }
+  github_report
+  exit $?
+fi
+
 printf 'Hydra Hermes Hetzner CX43 preflight (read-only)\n'
 
 [[ "$(uname -s)" == Linux ]] && pass "OS family: Linux" || block "OS must be Linux"
