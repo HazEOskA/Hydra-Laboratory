@@ -43,3 +43,7 @@ The private repository uses repository secrets rather than GitHub Environment se
 ## D-011: Tailscale OIDC Transport
 
 GitHub-hosted ephemeral runners join the private tailnet through workload identity federation. The bridge uses `TS_OAUTH_CLIENT_ID`, `TS_AUDIENCE`, and an operator-configured tag set without a reusable Tailscale OAuth secret or auth key. Public SSH remains closed. Status: accepted.
+
+## D-012: Persistent Tailscale Host Before Firewall Lockdown
+
+The Hetzner server enrolls as persistent `hydra-hermes-runtime-01` with exactly `tag:hydra-runtime` before restrictive UFW is enabled. Its one-off, non-reusable, non-ephemeral, short-lived auth key is supplied only through an external rendering flow and the documented `file:` mechanism. Tailscale SSH remains disabled; hardened OpenSSH is transported on `tailscale0`. Failure leaves UFW unenabled and Hetzner Console as recovery. Status: accepted.

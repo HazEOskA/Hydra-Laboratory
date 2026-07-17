@@ -1,14 +1,17 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: static-check syntax-check infra-check remote-workflow-check docs-check secret-scan preflight validate
+.PHONY: static-check syntax-check infra-check tailscale-bootstrap-check remote-workflow-check docs-check secret-scan preflight validate
 
-static-check: syntax-check infra-check remote-workflow-check docs-check secret-scan
+static-check: syntax-check infra-check tailscale-bootstrap-check remote-workflow-check docs-check secret-scan
 
 syntax-check:
-	@for script in scripts/*.sh; do bash -n "$$script"; done
+	@for script in scripts/*.sh tests/*.sh; do bash -n "$$script"; done
 
 infra-check:
 	@./scripts/validate-infra.sh
+
+tailscale-bootstrap-check:
+	@./tests/test-tailscale-bootstrap.sh
 
 remote-workflow-check:
 	@./scripts/validate-remote-workflow.sh

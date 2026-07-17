@@ -19,7 +19,7 @@ This directory is the locked infrastructure contract for `hydra-hermes-runtime-0
 | Hostname | `hydra-hermes-runtime-01` |
 | GPU | Not required |
 
-The server must be created with an existing SSH public key selected from the Hetzner project. No private key, API token, password, or provider credential belongs in this repository or cloud-init.
+The server must be created with an existing Hydra SSH public key selected from the Hetzner project. No private key, API token, password, or real credential belongs in this repository or the secret-free cloud-init template.
 
 ## Firewall
 
@@ -31,16 +31,22 @@ Hetzner Cloud Firewalls are stateful. With no outbound rules, outbound traffic r
 
 ## Cloud-init Boundary
 
-Hetzner accepts cloud-init user data up to 32 KiB. `../cloud-init.yaml`:
+Hetzner accepts cloud-init user data up to 32 KiB. `../cloud-init.yaml` is a secret-free template that must be rendered outside Git with `scripts/render-cloud-init.sh`. Its gated flow:
 
 - creates the `hydra` operator,
 - transfers only the Hetzner-injected SSH public key,
 - disables root and password authentication after key validation,
 - permits local SSH forwarding for the Hermes dashboard/API,
+- installs Tailscale from the official stable Ubuntu `noble` repository,
+- enrolls a persistent node as `hydra-hermes-runtime-01` with exactly `tag:hydra-runtime` and Tailscale SSH disabled,
+- requires `tailscaled`, `tailscale0`, a Tailscale address, online control-plane status, hostname, and tag validation before UFW activation,
+- enables UFW with TCP/22 accepted only on `tailscale0`,
 - installs Docker from Ubuntu packages and enables bounded Docker logs,
 - installs Node.js from the maintained Snap channel 22 and enforces `>=22.19`,
-- enables UFW, fail2ban, and unattended upgrades,
-- does not install NemoClaw or receive any secret.
+- enables fail2ban and unattended upgrades,
+- does not install NemoClaw.
+
+The production `TS_RUNTIME_AUTH_KEY` is supplied only to the external renderer. It must be one-off, non-reusable, non-ephemeral, short-lived, tagged `tag:hydra-runtime`, and pre-approved when device approval is active. The rendered file is mode `0600`, remains outside Git, and is deleted after submission. Cloud-init passes the key by protected temporary file using `--auth-key=file:…`, removes it, and redacts its cached payload. A Tailscale failure stops cloud-init before UFW is enabled; use Hetzner Console rather than public SSH for recovery.
 
 ## External Boundary
 

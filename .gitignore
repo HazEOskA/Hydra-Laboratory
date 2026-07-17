@@ -16,6 +16,7 @@ install-evidence.local.md
 *.tfvars
 *.auto.tfvars
 infra/hetzner/rendered/
+*.rendered.yaml
 cloud-init-output.log
 .ssh/
 *.known_hosts

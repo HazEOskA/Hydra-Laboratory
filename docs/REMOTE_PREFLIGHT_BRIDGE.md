@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The manually dispatched GitHub Actions workflow `.github/workflows/remote-preflight.yml` is the only repository-defined remote bridge. It uses a GitHub-hosted ephemeral runner, joins the private tailnet with OIDC, then streams `scripts/remote-preflight.sh` to `hydra-hermes-runtime-01` over strict SSH. The `--github-report` mode never installs software, changes services or firewall rules, starts onboarding, creates a sandbox, or writes to the remote repository.
+The manually dispatched GitHub Actions workflow `.github/workflows/remote-preflight.yml` is the only repository-defined remote bridge. It uses a GitHub-hosted ephemeral runner, joins the private tailnet with OIDC, then streams `scripts/remote-preflight.sh` to the already-enrolled persistent node `hydra-hermes-runtime-01` over strict OpenSSH. The `--github-report` mode never installs software, changes Tailscale, services or firewall rules, starts onboarding, creates a sandbox, or writes to the remote repository.
 
 ## Private-Repository Compatibility
 
@@ -38,6 +38,8 @@ Configure a Tailscale workload identity federation credential restricted to this
 
 The official Tailscale action is pinned to the reviewed v4.1.3 commit. It creates an ephemeral tailnet node and removes it after the job. Public SSH is not part of this transport.
 
+The ephemeral runner identity is distinct from the server bootstrap identity. `TS_RUNTIME_AUTH_KEY` must never be added to GitHub Actions secrets or used by this workflow. The server is enrolled once as a persistent, non-ephemeral node tagged exactly `tag:hydra-runtime`; the runner continues to use OIDC. Tailscale SSH remains disabled on the server.
+
 ## Dedicated SSH Identity
 
 The private key must belong only to this Hydra runtime bridge. It must not be a personal key and must not be reused by another host, repository, workflow, or project. Store it only as the repository secret. Install only its public half for the `hydra` account on the target host.
@@ -52,9 +54,9 @@ The workflow uses `StrictHostKeyChecking=yes` and never calls `ssh-keyscan`. A m
 
 ## Firewall Boundary
 
-Public SSH must remain closed. The Hetzner firewall must not expose TCP/22, 4000, 8642, or 18789. The runner reaches the SSH service through the private Tailscale interface; tailnet ACLs or grants must restrict access to the Hydra host and port 22.
+Public SSH must remain closed. The Hetzner firewall must not expose TCP/22, 4000, 8642, or 18789. Host UFW accepts TCP/22 only on `tailscale0`. The runner reaches hardened OpenSSH through the private Tailscale interface; tailnet ACLs or grants must restrict access to the Hydra host and port 22. Tailscale SSH is not used.
 
-The workflow cannot modify provider firewall or tailnet policy. If private Tailscale reachability is not already configured, do not dispatch the workflow.
+The workflow cannot install Tailscale on the host, enroll it, modify provider firewall, or change tailnet policy. If `scripts/validate-tailscale-host.sh` and independent admin-console visibility have not established the persistent server path, do not configure bridge secrets and do not dispatch the workflow.
 
 ## Manual Execution
 

@@ -1,4 +1,6 @@
 #cloud-config
+# SECRET-FREE TEMPLATE. Render outside the repository with scripts/render-cloud-init.sh.
+# The marker below is intentionally not a credential.
 hostname: hydra-hermes-runtime-01
 fqdn: hydra-hermes-runtime-01
 manage_etc_hosts: true
@@ -18,25 +20,24 @@ users:
     lock_passwd: true
     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
 
+# Only bootstrap and validation packages are installed before Tailscale enrollment.
+# Docker, Node.js, and runtime prerequisites are installed after the UFW gate.
 packages:
   - bash
-  - binutils
   - ca-certificates
   - curl
-  - docker.io
-  - fail2ban
-  - git
+  - gnupg
   - jq
   - openssh-server
-  - python3
-  - python3-venv
-  - snapd
-  - tar
   - ufw
-  - unattended-upgrades
-  - zstd
 
 write_files:
+  - path: /run/ts-runtime-auth-key.b64
+    owner: root:root
+    permissions: "0600"
+    content: |
+      __TS_RUNTIME_AUTH_KEY_B64__
+
   - path: /etc/docker/daemon.json
     owner: root:root
     permissions: "0644"
@@ -75,6 +76,43 @@ write_files:
       #!/usr/bin/env bash
       set -Eeuo pipefail
 
+      readonly expected_hostname="hydra-hermes-runtime-01"
+      readonly expected_tag="tag:hydra-runtime"
+      readonly encoded_auth_file="/run/ts-runtime-auth-key.b64"
+      readonly auth_file="/run/ts-runtime-auth-key"
+      readonly status_file="/run/ts-runtime-status.json"
+      encoded_auth_payload="$(tr -d '\r\n' < "$encoded_auth_file" 2>/dev/null || true)"
+
+      redact_cloud_cache() {
+        local path line tmp
+        [[ -n "$encoded_auth_payload" ]] || return 0
+        for path in \
+          /var/lib/cloud/instance/user-data.txt \
+          /var/lib/cloud/instance/cloud-config.txt; do
+          [[ -f "$path" ]] || continue
+          tmp="${path}.hydra-redacted"
+          : > "$tmp"
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line//$encoded_auth_payload/[REDACTED-ONE-OFF-AUTH-KEY]}"
+            printf '%s\n' "$line" >> "$tmp"
+          done < "$path"
+          chmod --reference="$path" "$tmp"
+          chown --reference="$path" "$tmp"
+          mv -- "$tmp" "$path"
+        done
+      }
+
+      cleanup_credentials() {
+        redact_cloud_cache
+        encoded_auth_payload=""
+        rm -f -- "$auth_file" "$encoded_auth_file" "$status_file"
+      }
+      trap cleanup_credentials EXIT
+
+      # Gate 1: create and validate the dedicated runtime operator.
+      id hydra >/dev/null
+      [[ "$(getent passwd hydra | cut -d: -f7)" == /bin/bash ]]
+      passwd -S hydra | grep -Eq '^hydra[[:space:]]+L'
       install -d -m 0700 -o hydra -g hydra /home/hydra/.ssh
       test -s /root/.ssh/authorized_keys
       awk '
@@ -92,6 +130,7 @@ write_files:
       chmod 0600 /home/hydra/.ssh/authorized_keys
       ssh-keygen -lf /home/hydra/.ssh/authorized_keys >/dev/null
 
+      # Gate 2: validate and activate key-only OpenSSH before network lockdown.
       cat > /etc/ssh/sshd_config.d/99-hydra-hardening.conf <<'EOF'
       PermitRootLogin no
       PasswordAuthentication no
@@ -109,7 +148,82 @@ write_files:
       ClientAliveCountMax 2
       EOF
       sshd -t
+      systemctl reload ssh
+      systemctl is-active --quiet ssh
 
+      # Gate 3: install Tailscale from its official Ubuntu 24.04 (noble) repository.
+      install -d -m 0755 /usr/share/keyrings /etc/apt/sources.list.d
+      curl --proto '=https' --tlsv1.2 -fsSL \
+        https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg \
+        -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+      curl --proto '=https' --tlsv1.2 -fsSL \
+        https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list \
+        -o /etc/apt/sources.list.d/tailscale.list
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale
+
+      # Gate 4: tailscaled must be enabled and running before enrollment.
+      systemctl enable --now tailscaled
+      systemctl is-enabled --quiet tailscaled
+      systemctl is-active --quiet tailscaled
+
+      # Gate 5: enroll one persistent, tagged server without exposing the key in argv.
+      test -s "$encoded_auth_file"
+      placeholder='__TS_RUNTIME_AUTH_KEY'"_B64__"
+      ! grep -Fqx "$placeholder" "$encoded_auth_file"
+      umask 077
+      base64 --decode "$encoded_auth_file" > "$auth_file"
+      rm -f -- "$encoded_auth_file"
+      test -s "$auth_file"
+      ! grep -q '[[:space:]]' "$auth_file"
+      tailscale up \
+        --auth-key="file:${auth_file}" \
+        --hostname="$expected_hostname" \
+        --advertise-tags="$expected_tag" \
+        --ssh=false
+      rm -f -- "$auth_file"
+      redact_cloud_cache
+      encoded_auth_payload=""
+
+      # Gates 6-7: require the interface, assigned addresses, control-plane visibility,
+      # exact hostname/tag, and disabled Tailscale SSH before touching UFW.
+      ip link show tailscale0 >/dev/null
+      test -n "$(tailscale ip)"
+      connected=0
+      for _ in $(seq 1 30); do
+        if tailscale status --json > "$status_file" 2>/dev/null \
+          && jq -e \
+            --arg host "$expected_hostname" \
+            --arg tag "$expected_tag" \
+            '.BackendState == "Running"
+             and .Self.Online == true
+             and .Self.HostName == $host
+             and ((.Self.TailscaleIPs // []) | length > 0)
+             and ((.Self.Tags // []) == [$tag])' \
+            "$status_file" >/dev/null; then
+          connected=1
+          break
+        fi
+        sleep 2
+      done
+      [[ "$connected" == 1 ]]
+      systemctl is-enabled --quiet tailscaled
+      systemctl is-active --quiet tailscaled
+      test -s /var/lib/tailscale/tailscaled.state
+      ! tailscale status --json | grep -Fq '"RunSSH": true'
+
+      # Gate 8: only a validated tailscale0 path is allowed to unlock SSH in UFW.
+      ufw --force reset
+      ufw default deny incoming
+      ufw default allow outgoing
+      ufw allow in on tailscale0 to any port 22 proto tcp comment 'SSH over Tailscale only'
+      ufw --force enable
+      ufw status | grep -Eq '^Status:[[:space:]]+active$'
+
+      # Gate 10: runtime prerequisites come after the private management path and UFW.
+      DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        binutils docker.io fail2ban git python3 python3-venv snapd tar \
+        unattended-upgrades zstd
       usermod -aG docker hydra
       systemctl enable --now docker
       docker info >/dev/null
@@ -122,15 +236,8 @@ write_files:
       /snap/bin/node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>22 || (a===22 && b>=19) ? 0 : 1)'
       /snap/bin/npm --version >/dev/null
 
-      ufw --force reset
-      ufw default deny incoming
-      ufw default allow outgoing
-      ufw allow in on tailscale0 to any port 22 proto tcp comment 'SSH over Tailscale only'
-      ufw --force enable
-
       systemctl enable --now fail2ban
       systemctl enable --now unattended-upgrades
-      systemctl reload ssh
 
       install -d -m 0755 /var/lib/hydra-bootstrap
       date -u +%FT%TZ > /var/lib/hydra-bootstrap/complete
@@ -138,4 +245,4 @@ write_files:
 runcmd:
   - [/usr/local/sbin/hydra-firstboot]
 
-final_message: "Hydra Hermes Hetzner baseline complete. Reboot if /var/run/reboot-required exists, reconnect as hydra, then run remote-preflight.sh."
+final_message: "Hydra baseline finished only if Tailscale enrollment and firewall gates passed. Use Hetzner Console for failed cloud-init recovery; do not expose public SSH."

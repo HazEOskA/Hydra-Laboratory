@@ -17,6 +17,7 @@ Status: LOCKED for baseline evaluation.
 
 ```text
 GitHub
+  -> Tailscale private management plane
   -> Hetzner CX43 / Ubuntu 24.04 / x86_64
   -> NemoClaw Host CLI
   -> OpenShell
@@ -42,21 +43,22 @@ The host is exactly 8 shared vCPU, 16 GB RAM and 160 GB disk in `nbg1` (fallback
 ## Execution Flow
 
 1. Validate repository statically.
-2. Provision the reviewed Hetzner CX43 with an approved public SSH key, a provider firewall with no public SSH rule, and a separately approved private Tailscale path.
-3. Run remote preflight without mutation.
-4. Review exact write paths and elevation needs.
-5. Inject `NVIDIA_INFERENCE_API_KEY` through the host environment or approved secret store.
-6. Run the explicitly gated installer/onboard script.
-7. Validate status, doctor, route, credential boundary, dashboard, and a real first prompt.
-8. Record only sanitized evidence.
+2. Render cloud-init outside Git with a one-off, non-ephemeral, tagged `TS_RUNTIME_AUTH_KEY` supplied by an approved secret flow.
+3. Provision the reviewed Hetzner CX43 with the Hydra public SSH key and provider firewall. Cloud-init must enroll and validate the persistent Tailscale host before enabling UFW; delete the rendered file after submission.
+4. Run remote preflight without mutation through hardened OpenSSH on `tailscale0`.
+5. Review exact write paths and elevation needs.
+6. Inject `NVIDIA_INFERENCE_API_KEY` through the host environment or approved secret store.
+7. Run the explicitly gated installer/onboard script.
+8. Validate status, doctor, route, credential boundary, dashboard, and a real first prompt.
+9. Record only sanitized evidence.
 
 ## Validation Flow
 
-Static CI proves script syntax, required documentation, YAML parseability, and absence of obvious secrets. Host validation proves Docker/OpenShell/NemoClaw health, registered Hermes identity, `routed` provider, `inference.local`, real inference, dashboard reachability, and absence of the raw key inside the sandbox.
+Static CI proves script syntax, required documentation, YAML parseability, Tailscale-before-UFW ordering, pinned workflow transport, and absence of obvious secrets. Host bootstrap validation proves the persistent online Tailscale identity before UFW. Runtime validation proves Docker/OpenShell/NemoClaw health, registered Hermes identity, `routed` provider, `inference.local`, real inference, dashboard reachability, and absence of the raw NVIDIA key inside the sandbox.
 
 ## Deployment / Runtime Flow
 
-There is no web deployment. The remote host runs one sandbox named `hydra-hermes-lab`. The provider firewall exposes no SSH rule; automation reaches key-only SSH through Tailscale. Model Router 4000, API 8642, and dashboard 18789 remain loopback-bound and are accessed only through an operator-controlled private tunnel where applicable.
+There is no web deployment. The remote host runs one sandbox named `hydra-hermes-lab`. The provider firewall exposes no SSH rule; UFW accepts SSH only on `tailscale0`, and automation reaches hardened OpenSSH through Tailscale. Tailscale SSH is disabled. Model Router 4000, API 8642, and dashboard 18789 remain loopback-bound and are accessed only through an operator-controlled private tunnel where applicable.
 
 ## Rollback / Safety Plan
 

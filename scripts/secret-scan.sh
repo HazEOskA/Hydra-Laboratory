@@ -17,7 +17,7 @@ for file in "${files[@]}"; do
   esac
 done
 
-patterns='BEGIN [A-Z ]*PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|NVIDIA_INFERENCE_API_KEY[[:space:]]*=[[:space:]]*[^<[:space:]#][^[:space:]]*|AKIA[0-9A-Z]{16}'
+patterns='BEGIN [A-Z ]*PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|NVIDIA_INFERENCE_API_KEY[[:space:]]*=[[:space:]]*[^<[:space:]#][^[:space:]]*|TS_RUNTIME_AUTH_KEY[[:space:]]*=[[:space:]]*[^<[:space:]#][^[:space:]]*|tskey-(auth|client|api)-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}'
 matches="$(grep -nEI "$patterns" "${files[@]}" 2>/dev/null || true)"
 if [[ -n "$matches" ]]; then
   printf 'Potential secret material detected:\n%s\n' "$matches" >&2

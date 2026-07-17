@@ -62,7 +62,7 @@ The only repository-defined remote bridge is the manually dispatched [remote pre
 
 ## Locked Host
 
-`hydra-hermes-runtime-01` is a Hetzner Cloud CX43 in Nuremberg (`nbg1`), with Falkenstein (`fsn1`) as fallback: x86_64, 8 shared vCPU, 16 GB RAM, 160 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. The provider firewall exposes no SSH rule; workflow access uses the private Tailscale network. Ports 4000, 8642, and 18789 remain private and loopback-bound.
+`hydra-hermes-runtime-01` is a Hetzner Cloud CX43 in Nuremberg (`nbg1`), with Falkenstein (`fsn1`) as fallback: x86_64, 8 shared vCPU, 16 GB RAM, 160 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. Cloud-init must enroll and validate the persistent, tagged Tailscale host before UFW can activate. The provider firewall exposes no SSH rule; UFW accepts hardened OpenSSH only on `tailscale0`, and Tailscale SSH is disabled. Ports 4000, 8642, and 18789 remain private and loopback-bound.
 
 ## Official Sources
 

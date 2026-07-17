@@ -46,6 +46,13 @@ require_text "$cloud_init" "PermitRootLogin no"
 require_text "$cloud_init" "PasswordAuthentication no"
 require_text "$cloud_init" "AuthenticationMethods publickey"
 require_text "$cloud_init" "AllowTcpForwarding local"
+require_text "$cloud_init" "https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list"
+require_text "$cloud_init" "systemctl enable --now tailscaled"
+require_text "$cloud_init" '--auth-key="file:${auth_file}"'
+require_text "$cloud_init" '--advertise-tags="$expected_tag"'
+require_text "$cloud_init" '--ssh=false'
+require_text "$cloud_init" "ip link show tailscale0"
+require_text "$cloud_init" '.BackendState == "Running"'
 require_text "$cloud_init" "ufw default deny incoming"
 require_text "$cloud_init" "ufw allow in on tailscale0 to any port 22 proto tcp"
 require_text "$cloud_init" "systemctl enable --now docker"
