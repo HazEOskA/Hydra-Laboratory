@@ -1,0 +1,34 @@
+// Hydra tailnet policy fragment.
+//
+// IMPORTANT:
+// - Merge this fragment into the existing tailnet policy.
+// - Do not replace unrelated tailnet rules blindly.
+// - This project uses hardened OpenSSH over Tailscale, not Tailscale SSH.
+// - Default deny remains in effect because no wildcard grant is defined here.
+{
+  "tagOwners": {
+    "tag:hydra-ci": ["autogroup:owner"],
+    "tag:hydra-runtime": ["autogroup:owner"],
+  },
+
+  "grants": [
+    {
+      "src": ["tag:hydra-ci"],
+      "dst": ["tag:hydra-runtime"],
+      "ip": ["tcp:22"],
+    },
+  ],
+
+  "tests": [
+    {
+      "src": "tag:hydra-ci",
+      "proto": "tcp",
+      "accept": ["tag:hydra-runtime:22"],
+      "deny": [
+        "tag:hydra-runtime:4000",
+        "tag:hydra-runtime:8642",
+        "tag:hydra-runtime:18789",
+      ],
+    },
+  ],
+}
