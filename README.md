@@ -5,7 +5,7 @@ GitHub-first operational control repository for evaluating Hermes inside an NVID
 ## Status
 
 - Repository scaffold: ready
-- Remote runtime: Hetzner CX43 target locked; not yet provisioned or connected
+- Remote runtime: active Contabo/QEMU host connected privately through Tailscale; host baseline ready
 - NemoClaw installation: not started
 - Baseline target: Hermes + NVIDIA Model Router
 - Sandbox: `hydra-hermes-lab`
@@ -18,7 +18,7 @@ GitHub-first operational control repository for evaluating Hermes inside an NVID
 ```text
 Cloud coding agent
   -> GitHub repository
-  -> Hetzner CX43 / Ubuntu 24.04 host
+  -> Contabo VPS / Ubuntu 24.04 host
   -> NemoClaw host CLI
   -> OpenShell
      -> host-side credentials
@@ -39,7 +39,7 @@ This repository contains infrastructure definitions, safe operator scripts, vali
 
 ## Remote Host Flow
 
-1. Provision the locked Hetzner CX43 target using [the provisioning checklist](infra/hetzner/PROVISIONING_CHECKLIST.md).
+1. Maintain the active locked Contabo runtime; `infra/hetzner/` is retained only as historical provisioning reference.
 2. Run `make static-check` locally or in CI.
 3. Run `scripts/remote-preflight.sh` on the selected host.
 4. Supply `NVIDIA_INFERENCE_API_KEY` through the approved host secret mechanism.
@@ -62,7 +62,7 @@ The only repository-defined remote bridge is the manually dispatched [remote pre
 
 ## Locked Host
 
-`hydra-hermes-runtime-01` is a Hetzner Cloud CX43 in Nuremberg (`nbg1`), with Falkenstein (`fsn1`) as fallback: x86_64, 8 shared vCPU, 16 GB RAM, 160 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. Cloud-init must enroll and validate the persistent, tagged Tailscale host before UFW can activate. The provider firewall exposes no SSH rule; UFW accepts hardened OpenSSH only on `tailscale0`, and Tailscale SSH is disabled. Ports 4000, 8642, and 18789 remain private and loopback-bound.
+`hydra-hermes-runtime-01` is the active Contabo VPS, identified by DMI as `QEMU`: x86_64, 8 vCPU, approximately 24 GB RAM, 300 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. The persistent tagged Tailscale host is online before UFW enforcement. Public SSH remains closed; UFW accepts hardened OpenSSH only on `tailscale0`, and Tailscale SSH is disabled. Ports 4000, 8642, and 18789 remain private and loopback-bound. Runtime admission depends on verified capacity and security gates rather than a provider brand string.
 
 ## Official Sources
 
