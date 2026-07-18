@@ -47,3 +47,7 @@ GitHub-hosted ephemeral runners join the private tailnet through workload identi
 ## D-012: Persistent Tailscale Host Before Firewall Lockdown
 
 The Hetzner server enrolls as persistent `hydra-hermes-runtime-01` with exactly `tag:hydra-runtime` before restrictive UFW is enabled. Its one-off, non-reusable, non-ephemeral, short-lived auth key is supplied only through an external rendering flow and the documented `file:` mechanism. Tailscale SSH remains disabled; hardened OpenSSH is transported on `tailscale0`. Failure leaves UFW unenabled and Hetzner Console as recovery. Status: accepted.
+
+## D-013: Active Runtime Provider
+
+The active baseline host is the provisioned Contabo VPS identified by DMI as `QEMU`: x86_64, 8 vCPU, approximately 24 GB RAM, 300 GB disk, Ubuntu 24.04, hostname `hydra-hermes-runtime-01`, and no GPU requirement. D-008 and the Hetzner-specific recovery wording in D-012 are superseded for the active runtime; the provider-specific Hetzner files remain historical provisioning references only. Runtime admission is based on the locked capacity, OS, private Tailscale management plane, hardened OpenSSH, firewall, and service gates—not a provider brand string. Status: accepted.
