@@ -58,7 +58,7 @@ if command -v ss >/dev/null 2>&1; then
   api_listeners="$(ss -ltnH "sport = :8642" 2>/dev/null | awk '{print $4}' || true)"
   if [[ -z "$api_listeners" ]]; then
     fail "Hermes API listener missing on port 8642"
-  elif grep -Evq '^(127\\.0\\.0\\.1|\\[::1\\]):' <<<"$api_listeners"; then
+  elif grep -Evq '^(127\.0\.0\.1|\[::1\]):' <<<"$api_listeners"; then
     fail "Hermes API port 8642 has a non-loopback listener"
   else
     pass "Hermes API port 8642: loopback-only"
@@ -67,7 +67,7 @@ if command -v ss >/dev/null 2>&1; then
   dashboard_listeners="$(ss -ltnH "sport = :18789" 2>/dev/null | awk '{print $4}' || true)"
   if [[ -z "$dashboard_listeners" ]]; then
     pass "OpenClaw dashboard port 18789 unused by Hermes"
-  elif grep -Evq '^(127\\.0\\.0\\.1|\\[::1\\]):' <<<"$dashboard_listeners"; then
+  elif grep -Evq '^(127\.0\.0\.1|\[::1\]):' <<<"$dashboard_listeners"; then
     fail "optional port 18789 has a non-loopback listener"
   else
     pass "optional port 18789: loopback-only"
@@ -77,10 +77,10 @@ else
 fi
 
 ufw_status="$(sudo -n ufw status 2>/dev/null || true)"
-grep -Eq '^172\\.18\\.0\\.1[[:space:]]+4000/tcp[[:space:]]+ALLOW[[:space:]]+172\\.18\\.0\\.0/16' <<<"$ufw_status" \
+grep -Eq '^172\.18\.0\.1[[:space:]]+4000/tcp[[:space:]]+ALLOW[[:space:]]+172\.18\.0\.0/16' <<<"$ufw_status" \
   && pass "UFW restricts Model Router 4000 to OpenShell Docker bridge" \
   || fail "missing scoped UFW rule for Model Router 4000"
-grep -Eq '^172\\.18\\.0\\.1[[:space:]]+8080/tcp[[:space:]]+ALLOW[[:space:]]+172\\.18\\.0\\.0/16' <<<"$ufw_status" \
+grep -Eq '^172\.18\.0\.1[[:space:]]+8080/tcp[[:space:]]+ALLOW[[:space:]]+172\.18\.0\.0/16' <<<"$ufw_status" \
   && pass "UFW restricts OpenShell gateway 8080 to Docker bridge" \
   || fail "missing scoped UFW rule for OpenShell gateway 8080"
 
