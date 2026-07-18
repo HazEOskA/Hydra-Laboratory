@@ -163,7 +163,7 @@ if [[ "${1:-}" == --github-report ]]; then
   exit $?
 fi
 
-printf 'Hydra Hermes Hetzner CX43 preflight (read-only)\n'
+printf 'Hydra Hermes runtime preflight (read-only)\n'
 
 [[ "$(uname -s)" == Linux ]] && pass "OS family: Linux" || block "OS must be Linux"
 [[ "$(uname -m)" == x86_64 ]] && pass "Architecture: x86_64" || block "Architecture must be x86_64; detected $(uname -m)"
@@ -181,13 +181,13 @@ fi
 
 if [[ -r /sys/class/dmi/id/sys_vendor ]]; then
   vendor="$(tr -d '\n' </sys/class/dmi/id/sys_vendor)"
-  [[ "$vendor" == *Hetzner* ]] && pass "Cloud vendor: $vendor" || block "Expected Hetzner Cloud; detected vendor: $vendor"
+  [[ -n "$vendor" ]] && pass "Virtualization vendor: $vendor" || block "DMI virtualization vendor is empty"
 else
-  block "Cannot verify Hetzner DMI vendor"
+  warn "DMI virtualization vendor unavailable; verify provider identity in its control plane"
 fi
 
 cpu="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 0)"
-[[ "$cpu" == 8 ]] && pass "CPU: 8 vCPU" || block "CX43 target requires 8 vCPU; detected $cpu"
+[[ "$cpu" == 8 ]] && pass "CPU: 8 vCPU" || block "Locked runtime target requires 8 vCPU; detected $cpu"
 
 ram_kib="$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || printf 0)"
 (( ram_kib >= MIN_RAM_KIB )) && pass "RAM: $((ram_kib / 1024 / 1024)) GiB (16 GB class)" || block "RAM below the 16 GB host class"
