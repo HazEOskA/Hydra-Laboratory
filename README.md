@@ -1,12 +1,12 @@
 # Hydra Hermes Lab
 
-GitHub-first operational control repository for evaluating Hermes inside an NVIDIA NemoClaw/OpenShell sandbox on a dedicated Hetzner Cloud host.
+GitHub-first operational control repository for running Hermes inside an NVIDIA NemoClaw/OpenShell sandbox on a dedicated Contabo VPS.
 
 ## Status
 
 - Repository scaffold: ready
 - Remote runtime: active Contabo/QEMU host connected privately through Tailscale; host baseline ready
-- NemoClaw installation: not started
+- NemoClaw/Hermes baseline: validated — runtime PASS and controlled first prompt PASS
 - Baseline target: Hermes + NVIDIA Model Router
 - Sandbox: `hydra-hermes-lab`
 - Provider selector: `routed`
@@ -44,7 +44,7 @@ This repository contains infrastructure definitions, safe operator scripts, vali
 3. Run `scripts/remote-preflight.sh` on the selected host.
 4. Supply `NVIDIA_INFERENCE_API_KEY` through the approved host secret mechanism.
 5. After explicit approval, run `scripts/install-nemoclaw.sh --execute` for a fresh host or `scripts/onboard-hermes.sh --execute` when NemoClaw is already installed.
-6. Run `scripts/validate-runtime.sh` and complete the controlled dashboard prompt in [VALIDATION_PLAN.md](docs/VALIDATION_PLAN.md).
+6. Run `scripts/validate-runtime.sh` and complete the controlled one-shot Hermes prompt in [VALIDATION_PLAN.md](docs/VALIDATION_PLAN.md).
 
 No command in this repository should be run against an unreviewed host. Installation and destructive operations have explicit execution gates.
 
@@ -62,7 +62,7 @@ The only repository-defined remote bridge is the manually dispatched [remote pre
 
 ## Locked Host
 
-`hydra-hermes-runtime-01` is the active Contabo VPS, identified by DMI as `QEMU`: x86_64, 8 vCPU, approximately 24 GB RAM, 300 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. The persistent tagged Tailscale host is online before UFW enforcement. Public SSH remains closed; UFW accepts hardened OpenSSH only on `tailscale0`, and Tailscale SSH is disabled. Ports 4000, 8642, and 18789 remain private and loopback-bound. Runtime admission depends on verified capacity and security gates rather than a provider brand string.
+`hydra-hermes-runtime-01` is the active Contabo VPS, identified by DMI as `QEMU`: x86_64, 8 vCPU, approximately 24 GB RAM, 300 GB disk, Ubuntu 24.04, public IPv4 and IPv6, and no GPU requirement. The persistent tagged Tailscale host is online before UFW enforcement. Public SSH remains closed; UFW accepts hardened OpenSSH only on `tailscale0`, and Tailscale SSH is disabled. Hermes ports 8642 and 18789 remain loopback-only; Model Router 4000 and OpenShell gateway 8080 are restricted by UFW to the OpenShell Docker bridge. Runtime admission depends on verified capacity and security gates rather than a provider brand string.
 
 ## Official Sources
 
@@ -74,4 +74,6 @@ The only repository-defined remote bridge is the manually dispatched [remote pre
 
 ## Future Hydra Work
 
-Baseline validation comes first. Custom router pools, additional tools, MCP servers, messaging, web search, and multi-agent Hydra orchestration remain deferred until the default routed pool has produced clean evidence.
+The default routed baseline is validated. Custom router pools, additional tools, MCP servers, messaging, web search, and multi-agent Hydra orchestration remain deferred to a separate follow-up milestone.
+
+Sanitized final results are recorded in [RUNTIME_EVIDENCE.md](docs/RUNTIME_EVIDENCE.md).
