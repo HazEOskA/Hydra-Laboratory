@@ -6,7 +6,7 @@ Run `make static-check`. CI repeats shell syntax checks, YAML parsing, documenta
 
 ## Remote Preflight Gate
 
-`scripts/remote-preflight.sh` requires Hetzner DMI identity, hostname `hydra-hermes-runtime-01`, x86_64, Ubuntu 24.04, exactly 8 online vCPU, a 16 GB RAM class, a 160 GB root-disk class, public IPv4 and IPv6 routes, completed cloud-init, no pending reboot, the dedicated `hydra` user, systemd, active Docker/UFW/fail2ban, hardened effective SSH settings, required tools, Node.js, compatible Python, free ports 4000/8642/18789, NemoClaw/OpenShell presence, and sandbox-name collision.
+`scripts/remote-preflight.sh` requires a non-empty virtualization identity when DMI is available, hostname `hydra-hermes-runtime-01`, x86_64, Ubuntu 24.04, exactly 8 online vCPU, at least a 16 GB RAM class, at least a 160 GB root-disk class, public IPv4 and IPv6 routes, completed bootstrap marker, no pending reboot, the dedicated `hydra` user, systemd, active Docker/UFW/fail2ban, hardened effective SSH settings, required tools, Node.js, compatible Python, free ports 4000/8642/18789, NemoClaw/OpenShell presence, and sandbox-name collision. Provider identity is verified separately in the authenticated provider control plane and is not inferred from a brand-specific DMI string.
 
 Before that remote preflight can be dispatched, `scripts/validate-tailscale-host.sh` must prove that `tailscaled` is enabled and active, `tailscale0` and assigned addresses exist, the backend is online, the hostname is `hydra-hermes-runtime-01`, the sole tag is `tag:hydra-runtime`, and persistent state exists. Repository test `tests/test-tailscale-bootstrap.sh` proves that these gates occur before UFW activation, runtime installation follows UFW, no public SSH rule or ephemeral host flag exists, the cloud-init renderer stays outside Git, the remote workflow remains manual-only, and the official Tailscale action remains pinned.
 
@@ -29,7 +29,7 @@ Run `scripts/validate-runtime.sh` and require:
 11. One real prompt succeeds.
 12. Sanitized logs and Git contain no secrets.
 13. Host listeners on 4000, 8642, and 18789 are loopback-only.
-14. Host provider and capacity still match the locked Hetzner CX43 target.
+14. Host capacity, OS, hostname, private management plane, and security controls still match the active locked runtime target.
 
 ## Controlled First Prompt
 
@@ -57,4 +57,4 @@ APR validation is declarative: this repository contains no reference that execut
 
 ## Provider-Control Gate
 
-Before runtime installation, verify in the Hetzner control plane that the exact firewall is attached, no public SSH rule exists, both public IP families exist, deletion protection is enabled for the server, and the selected image/location/plan match `infra/hetzner/server-spec.yaml`. In the Tailscale admin console, separately verify that the server is online, persistent, tagged exactly `tag:hydra-runtime`, and not using Tailscale SSH. Do not export provider or tailnet account data into repository evidence.
+Before runtime installation, verify in the authenticated Contabo control plane that no public SSH rule is enabled, both public IP families exist, and available deletion/rebuild safeguards are enabled. In the Tailscale admin console, separately verify that the server is online, persistent, tagged exactly `tag:hydra-runtime`, and not using Tailscale SSH. Do not export provider or tailnet account data into repository evidence. The files under `infra/hetzner/` are retained as historical provisioning references and are not the active provider contract.
