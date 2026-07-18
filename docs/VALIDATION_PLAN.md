@@ -25,7 +25,7 @@ Run `scripts/validate-runtime.sh` and require:
 7. Active route identifies the Model Router provider (`nvidia-router`) selected through onboarding value `routed`.
 8. Authoritative in-sandbox inference health uses `https://inference.local/v1/models`.
 9. Raw `NVIDIA_INFERENCE_API_KEY` is unset inside the sandbox.
-10. `nemohermes hydra-hermes-lab dashboard-url --quiet` returns a loopback management URL.
+10. Hermes API health responds on host loopback port 8642; optional dashboard port 18789 is loopback-only when present.
 11. One real prompt succeeds.
 12. Sanitized logs and Git contain no secrets.
 13. Host listeners on 4000, 8642, and 18789 are loopback-only.
@@ -33,23 +33,11 @@ Run `scripts/validate-runtime.sh` and require:
 
 ## Controlled First Prompt
 
-Open the URL returned by `nemohermes hydra-hermes-lab dashboard-url --quiet` through an operator-controlled tunnel and send exactly:
-
-```text
-You are running inside the sandbox named hydra-hermes-lab.
-
-Report:
-1. your agent identity,
-2. your runtime,
-3. whether you can access the host filesystem directly,
-4. the inference route you see,
-5. the tools currently available,
-6. the boundaries imposed by the sandbox.
-
-Do not modify files or call external tools.
-```
+Run one real, non-interactive prompt through the managed sandbox boundary with `nemohermes hydra-hermes-lab exec` and `hermes chat -q`. The prompt must request only agent identity, runtime, host-filesystem visibility, inference route, available tools, and sandbox boundaries, and must explicitly prohibit file changes and external tool calls.
 
 Record only a redacted outcome summary and PASS/FAIL. A status/doctor result alone is not a substitute for this real inference test.
+
+Final baseline outcome on 2026-07-18: **PASS**. See [RUNTIME_EVIDENCE.md](RUNTIME_EVIDENCE.md).
 
 ## APR Isolation
 
