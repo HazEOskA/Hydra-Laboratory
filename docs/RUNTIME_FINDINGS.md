@@ -117,6 +117,24 @@ Not everything was broken. From `hermesctl health` on `hydra-hermes-runtime-01`:
 - The worktree at `~/hermes-godlayer` left the deployed checkout at
   `/opt/hydra/apps/hydra-hermes-lab` untouched.
 
+## F-006: Recovery script would have mis-read every sandbox phase
+
+Caught by `tests/test-recovery.sh` before it ever ran on the host. The recovery
+script parsed `nemohermes … status --json` with a plain `json.load`, but the live
+CLI prints `✓ Active gateway set to 'nemoclaw'` before the JSON — so the phase
+always resolved to `unreadable`. Consequences on the real host would have been:
+
+- the ready-wait loop never detecting `Ready`, burning the full 600s timeout,
+- the restart loop burning its full 180s,
+- a FAIL reported on a sandbox that had in fact recovered.
+
+The symptom in the test was timing: 10 minutes wall against 17 seconds of CPU.
+
+**Status: fixed.** Both helpers now use `hermes.probe.extract_json`, the same
+scanner the model probe uses and the suite covers. Test runtime dropped to 17s
+with all 17 assertions still passing, and `validate-godlayer.sh` now fails if the
+recovery script reintroduces an untested status parser.
+
 ## Next Actions
 
 1. **Before any rebuild**, capture the crash evidence — it is destroyed by the

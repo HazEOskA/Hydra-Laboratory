@@ -87,11 +87,21 @@ git -C "$repo_root" diff HEAD~1..HEAD >"$out/git-diff.patch" 2>/dev/null || \
 } >"$out/05-permission-matrix.md"
 
 # 06 test results
+# HERMES_EVIDENCE_QUICK skips the re-runs for callers that already ran them
+# (the recovery test builds several bundles); it never fakes a result.
 {
   printf '# Test Results\n\n## Static contract\n\n```\n'
-  ( cd "$repo_root" && make static-check 2>&1 | tail -n 40 ) || true
+  if [[ "${HERMES_EVIDENCE_QUICK:-0}" == "1" ]]; then
+    printf 'SKIPPED (quick mode): not re-run for this bundle.\n'
+  else
+    ( cd "$repo_root" && make static-check 2>&1 | tail -n 40 ) || true
+  fi
   printf '```\n\n## Control-plane suite\n\n```\n'
-  ( cd "$repo_root" && python3 -m unittest discover -s tests/python -p 'test_*.py' 2>&1 | tail -n 20 ) || true
+  if [[ "${HERMES_EVIDENCE_QUICK:-0}" == "1" ]]; then
+    printf 'SKIPPED (quick mode): not re-run for this bundle.\n'
+  else
+    ( cd "$repo_root" && python3 -m unittest discover -s tests/python -p 'test_*.py' 2>&1 | tail -n 20 ) || true
+  fi
   printf '```\n'
 } >"$out/06-test-results.md"
 
@@ -119,8 +129,12 @@ git -C "$repo_root" diff HEAD~1..HEAD >"$out/git-diff.patch" 2>/dev/null || \
 # 09 revenue pipeline test
 {
   printf '# Revenue Pipeline Test\n\n```\n'
-  ( cd "$repo_root" && python3 -m unittest \
+  if [[ "${HERMES_EVIDENCE_QUICK:-0}" == "1" ]]; then
+    printf 'SKIPPED (quick mode): not re-run for this bundle.\n'
+  else
+    ( cd "$repo_root" && python3 -m unittest \
       tests.python.test_god_layer.TestRevenue 2>&1 | tail -n 10 ) || true
+  fi
   printf '```\n\nSynthetic data only. The suite asserts that no draft is marked sent\n'
   printf 'and that no outreach event can exist without a scoped approval reference.\n'
 } >"$out/09-revenue-pipeline-test.md"

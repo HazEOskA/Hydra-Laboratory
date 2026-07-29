@@ -27,7 +27,7 @@ jobs:
       - name: Validate continuous duty cycle
         run: make worker-check worker-loop-check
       - name: Validate God-Layer control plane
-        run: make godlayer-check
+        run: make godlayer-check recovery-check
       - name: Run control-plane test suite
         run: make python-tests
       - name: Validate documentation

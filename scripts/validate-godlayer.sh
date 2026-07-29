@@ -22,6 +22,7 @@ for file in SOUL.md config/tools.yaml config/models.yaml config/schedule.yaml \
   lib/hermes/router.py lib/hermes/revenue.py lib/hermes/soul.py lib/hermes/cli.py \
   scripts/hermesctl scripts/host-baseline.sh scripts/host-backup.sh \
   scripts/health-watch.sh scripts/evidence-bundle.sh lib/hermes/probe.py \
+  scripts/recover-hermes.sh scripts/audit-hydra-direct.sh \
   docs/GOD_LAYER.md docs/RUNTIME_FINDINGS.md; do
   [[ -s "$file" ]] && pass "$file exists" || fail "$file is missing or empty"
 done
@@ -205,6 +206,19 @@ if grep -rnE 'nvapi-[A-Za-z0-9_-]{8,}|tskey-(auth|client|api)-' lib/ config/ SOU
 else
   pass "no credential-shaped material in the control plane"
 fi
+
+# The recovery script rebuilds production; its invariants are contract, not style.
+grep -q 'SECURITY FAILURE: NVIDIA_INFERENCE_API_KEY is present' scripts/recover-hermes.sh \
+  && pass "recovery fails outright on an exposed provider credential" \
+  || fail "recovery does not enforce the credential boundary"
+
+grep -q 'same hypothesis' scripts/recover-hermes.sh \
+  && pass "recovery refuses to repeat a rebuild without a new hypothesis" \
+  || fail "rebuild failure policy is missing"
+
+grep -q 'from hermes.probe import extract_json' scripts/recover-hermes.sh \
+  && pass "recovery parses CLI output with the tested extractor" \
+  || fail "recovery uses an untested status parser"
 
 printf 'GOD LAYER VALIDATION: failures=%d\n' "$failures"
 (( failures == 0 ))

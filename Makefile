@@ -1,9 +1,9 @@
 SHELL := /usr/bin/env bash
 
 # hermesctl surfaces every control plane capability; see docs/GOD_LAYER.md
-.PHONY: static-check syntax-check infra-check tailscale-bootstrap-check remote-workflow-check worker-check worker-loop-check godlayer-check python-tests docs-check secret-scan preflight validate worker-plan worker-status report health baseline evidence
+.PHONY: static-check syntax-check infra-check tailscale-bootstrap-check remote-workflow-check worker-check worker-loop-check godlayer-check recovery-check python-tests docs-check secret-scan preflight validate worker-plan worker-status report health baseline evidence recover
 
-static-check: syntax-check infra-check tailscale-bootstrap-check remote-workflow-check worker-check worker-loop-check godlayer-check python-tests docs-check secret-scan
+static-check: syntax-check infra-check tailscale-bootstrap-check remote-workflow-check worker-check worker-loop-check godlayer-check recovery-check python-tests docs-check secret-scan
 
 syntax-check:
 	@for script in scripts/*.sh tests/*.sh; do bash -n "$$script"; done
@@ -25,6 +25,9 @@ worker-loop-check:
 
 godlayer-check:
 	@./scripts/validate-godlayer.sh
+
+recovery-check:
+	@./tests/test-recovery.sh
 
 python-tests:
 	@python3 -m unittest discover -s tests/python -p 'test_*.py'
@@ -60,3 +63,6 @@ baseline:
 
 evidence:
 	@./scripts/evidence-bundle.sh
+
+recover:
+	@./scripts/recover-hermes.sh
