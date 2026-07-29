@@ -1,8 +1,9 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: static-check syntax-check infra-check tailscale-bootstrap-check remote-workflow-check worker-check worker-loop-check docs-check secret-scan preflight validate worker-plan worker-status report
+# hermesctl surfaces every control plane capability; see docs/GOD_LAYER.md
+.PHONY: static-check syntax-check infra-check tailscale-bootstrap-check remote-workflow-check worker-check worker-loop-check godlayer-check python-tests docs-check secret-scan preflight validate worker-plan worker-status report health baseline evidence
 
-static-check: syntax-check infra-check tailscale-bootstrap-check remote-workflow-check worker-check worker-loop-check docs-check secret-scan
+static-check: syntax-check infra-check tailscale-bootstrap-check remote-workflow-check worker-check worker-loop-check godlayer-check python-tests docs-check secret-scan
 
 syntax-check:
 	@for script in scripts/*.sh tests/*.sh; do bash -n "$$script"; done
@@ -22,8 +23,14 @@ worker-check:
 worker-loop-check:
 	@./tests/test-worker-loop.sh
 
+godlayer-check:
+	@./scripts/validate-godlayer.sh
+
+python-tests:
+	@python3 -m unittest discover -s tests/python -p 'test_*.py'
+
 docs-check:
-	@for file in README.md docs/ARCHITECTURE_LOCK_v0.1.md docs/DEPLOYMENT_PLAN.md docs/REMOTE_PREFLIGHT_BRIDGE.md docs/SECURITY_MODEL.md docs/VALIDATION_PLAN.md docs/CONTINUOUS_OPERATION.md docs/DECISIONS.md docs/INSTALL_EVIDENCE.md docs/ROLLBACK.md infra/README.md infra/host-requirements.md infra/hetzner/README.md infra/hetzner/PROVISIONING_CHECKLIST.md infra/hetzner/server-spec.yaml infra/hetzner/firewall-rules.yaml tasks/README.md config/worker.env.example; do test -s "$$file" || { echo "Missing or empty: $$file"; exit 1; }; done
+	@for file in README.md docs/ARCHITECTURE_LOCK_v0.1.md docs/DEPLOYMENT_PLAN.md docs/REMOTE_PREFLIGHT_BRIDGE.md docs/SECURITY_MODEL.md docs/VALIDATION_PLAN.md docs/CONTINUOUS_OPERATION.md docs/GOD_LAYER.md docs/DECISIONS.md docs/INSTALL_EVIDENCE.md docs/ROLLBACK.md infra/README.md infra/host-requirements.md infra/hetzner/README.md infra/hetzner/PROVISIONING_CHECKLIST.md infra/hetzner/server-spec.yaml infra/hetzner/firewall-rules.yaml tasks/README.md config/worker.env.example SOUL.md config/tools.yaml config/models.yaml config/schedule.yaml; do test -s "$$file" || { echo "Missing or empty: $$file"; exit 1; }; done
 	@grep -q 'hydra-hermes-lab' README.md
 	@grep -q 'NVIDIA Model Router' docs/ARCHITECTURE_LOCK_v0.1.md
 
@@ -44,3 +51,12 @@ worker-status:
 
 report:
 	@./scripts/hermes-report.sh --stdout
+
+health:
+	@./scripts/hermesctl health
+
+baseline:
+	@./scripts/host-baseline.sh
+
+evidence:
+	@./scripts/evidence-bundle.sh

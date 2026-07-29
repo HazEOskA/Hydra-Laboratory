@@ -47,6 +47,7 @@ failing_stub='cat >/dev/null; printf "boom\n" >&2; exit 1'
 run_worker() {
   local state_dir="$1"; shift
   HERMES_WORKER_SIMULATE=1 \
+  HERMES_SOUL_FILE="${HERMES_SOUL_FILE:-$repo_root/SOUL.md}" \
   HERMES_WORKER_EXEC_CMD="${STUB:-$leaky_stub}" \
   HERMES_WORKER_TASK_DIR="$task_dir" \
   HERMES_WORKER_STATE_DIR="$state_dir" \
@@ -119,6 +120,41 @@ then
   pass 'journal records are well formed and stamped as simulated'
 else
   fail 'journal records failed the schema check'
+fi
+
+# 4b. The constitution is actually loaded into every prompt and stamped on the
+#     record, so "SOUL.md exists" and "SOUL.md governs the run" are not confused.
+capture="$workdir/soul-capture"
+mkdir -p "$capture"
+soul_stub="cat >'$capture/prompt.txt'; printf 'ok\n'"
+if STUB="$soul_stub" run_worker "$workdir/soulrun" --execute --cycles 1 >/dev/null 2>&1; then
+  expected_sha="$(PYTHONPATH="$repo_root/lib" python3 -m hermes.cli soul status \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
+  if grep -q 'HERMES CONSTITUTION' "$capture/prompt.txt" \
+    && grep -q 'RED — OSA Approval Required' "$capture/prompt.txt" \
+    && grep -Fq "$expected_sha" "$workdir/soulrun"/journal/*.jsonl; then
+    pass 'constitution is injected into the prompt and stamped on the record'
+  else
+    fail 'constitution did not reach the prompt or the journal'
+  fi
+else
+  fail 'constitution-loading run exited non-zero'
+fi
+
+# 4c. A missing or gutted constitution stops the loop instead of prompting blind.
+printf '# SOUL.md\n\n## Identity\n\nonly identity\n' >"$workdir/gutted-soul.md"
+set +e
+HERMES_SOUL_FILE="$workdir/gutted-soul.md" STUB="$soul_stub" \
+  run_worker "$workdir/soulguard" --execute --cycles 1 >/dev/null 2>&1
+gutted_exit=$?
+HERMES_SOUL_FILE="$workdir/absent-soul.md" STUB="$soul_stub" \
+  run_worker "$workdir/soulguard2" --execute --cycles 1 >/dev/null 2>&1
+absent_exit=$?
+set -e
+if (( gutted_exit == 5 && absent_exit == 5 )); then
+  pass 'a missing or incomplete constitution refuses to run'
+else
+  fail "constitution gate did not hold ($gutted_exit, $absent_exit)"
 fi
 
 # 5. Budget counters advance and are per day.

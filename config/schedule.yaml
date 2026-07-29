@@ -1,0 +1,74 @@
+# Automation schedule. Each entry maps to a systemd unit + timer under
+# infra/systemd/. Cron expressions are the contract; the timer files are the
+# implementation, and scripts/validate-godlayer.sh checks that they agree.
+#
+# Every job here is GREEN or YELLOW. Nothing on this schedule can contact anyone
+# outside the host or move money — those stay RED and manual by construction.
+
+version: 1
+
+timezone: UTC
+
+jobs:
+  hermes-health-watch:
+    cron: "*/5 * * * *"
+    script: scripts/health-watch.sh
+    unit: hydra-hermes-healthwatch
+    permission: YELLOW
+    purpose: >
+      Check API, dashboard, queue, ledger, duty cycle, disk, memory, containers,
+      services and model routing. Auto-recover GREEN failures, log YELLOW recovery,
+      notify OSA only for unresolved critical findings.
+    timeout_seconds: 120
+
+  repository-watch:
+    cron: "*/30 * * * *"
+    script: scripts/repo-watch.sh
+    unit: hydra-hermes-repowatch
+    permission: GREEN
+    purpose: >
+      Report dirty working trees, unpushed commits, stale branches, committed
+      secrets and missing deployment evidence. Read-only: it never modifies a
+      repository and never touches repositories outside the configured roots.
+    timeout_seconds: 300
+
+  daily-revenue-operations:
+    cron: "0 8 * * *"
+    script: scripts/revenue-ops.sh
+    unit: hydra-hermes-revenue
+    permission: GREEN
+    purpose: >
+      Score stored leads, generate mini-audits and outreach drafts, refresh
+      follow-up dates and update the revenue ledger. Drafting only — sending is
+      RED and requires a scoped OSA approval.
+    timeout_seconds: 900
+
+  daily-operations-brief:
+    cron: "0 19 * * *"
+    script: scripts/ops-brief.sh
+    unit: hydra-hermes-brief
+    permission: GREEN
+    purpose: >
+      Compose the daily brief: missions, duty-cycle results, runtime health, new
+      leads, drafts ready, blockers requiring OSA, evidence links and the exact
+      next recommended action.
+    timeout_seconds: 300
+
+  weekly-system-audit:
+    cron: "0 18 * * 0"
+    script: scripts/weekly-audit.sh
+    unit: hydra-hermes-weekly-audit
+    permission: GREEN
+    purpose: >
+      Audit architecture drift, stale tasks, dead letters, backup integrity,
+      security posture, revenue-pipeline performance, test coverage and evidence
+      completeness.
+    timeout_seconds: 900
+
+  duty-cycle-report:
+    cron: "0 5 * * *"
+    script: scripts/hermes-report.sh
+    unit: hydra-hermes-report
+    permission: GREEN
+    purpose: Sanitized 24h duty-cycle report from the journal.
+    timeout_seconds: 300

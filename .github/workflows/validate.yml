@@ -26,6 +26,10 @@ jobs:
         run: make infra-check tailscale-bootstrap-check remote-workflow-check
       - name: Validate continuous duty cycle
         run: make worker-check worker-loop-check
+      - name: Validate God-Layer control plane
+        run: make godlayer-check
+      - name: Run control-plane test suite
+        run: make python-tests
       - name: Validate documentation
         run: make docs-check
       - name: Scan for secrets

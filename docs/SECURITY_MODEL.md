@@ -51,6 +51,14 @@ Repository secrets are used because they work for private repositories across cu
 
 `scripts/hermes-worker.sh` prompts Hermes through `nemohermes … exec` and never receives `NVIDIA_INFERENCE_API_KEY`. Captured output is redacted before it reaches disk, and only a SHA-256 digest plus a 240-character redacted excerpt is journaled; full model output is never stored. The loop runs as `hydra` under a hardened systemd unit whose only writable path is `/var/lib/hydra-hermes`. Spending is bounded by a daily prompt cap, a minimum interval, per-task cadence, and per-prompt timeouts; an operator `STOP` file and a sticky circuit breaker stop it without uninstalling anything. Simulation mode is test-only: it requires an explicit stub command, never calls the sandbox, and stamps every record it writes, so simulated runs cannot be presented as runtime evidence.
 
+## God-Layer Trust Plane
+
+Every tool call is classified GREEN/YELLOW/RED before dispatch. SOUL.md's RED list is compiled into escalation patterns, so a GREEN tool cannot be used to perform a RED action; a disabled tool is refused rather than downgraded; and an unclassified action on a split-permission tool defaults to RED. Approvals are scoped to one task and expire, and one RED task never freezes unrelated GREEN work.
+
+The evidence ledger is append-only at the storage layer and hash-chained, so a record cannot be rewritten without the chain check failing. A mission cannot reach `COMPLETED` without passing `VALIDATING` and supplying evidence. Outreach cannot be recorded without a scoped approval reference — enforced by a database trigger, not only by application code. Projected revenue is stored in separate columns from realised revenue and can never be reported as cash.
+
+Host inventories mask credential-shaped environment values as `abcd...wxyz` and never record a raw value.
+
 ## Sandbox Proof
 
 Validation must prove that `NVIDIA_INFERENCE_API_KEY` is unset inside `hydra-hermes-lab`. It must also prove that the active route is `routed`/`nvidia-router` and that inference flows through `https://inference.local/v1`.

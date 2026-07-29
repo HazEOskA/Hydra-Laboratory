@@ -47,6 +47,14 @@ Final baseline outcome on 2026-07-18: **PASS**. See [RUNTIME_EVIDENCE.md](RUNTIM
 
 Neither gate claims a working runtime. Continuous operation is only proven on the host, by `scripts/hermes-worker.sh --status` and a report covering real, non-simulated records.
 
+## God-Layer Control-Plane Gate
+
+`make godlayer-check` runs `scripts/validate-godlayer.sh`: the constitution loads and contains every required section; the duty cycle actually injects it; routine operations stay GREEN while irreversible and outward-facing operations are RED and require approval; a GREEN tool cannot be used to perform a RED action; the payments tool stays disabled; every enabled tool declares a health check; `config/schedule.yaml`, the automation scripts and the systemd timers agree; no scheduled job is RED; no automation makes an outbound request or can send mail; the evidence ledger is append-only with a validation gate before `COMPLETED`; outreach cannot be recorded without a scoped approval; and queue concurrency is bounded.
+
+`make python-tests` runs `tests/python/test_god_layer.py` offline against temporary stores: permission classification and escalation, constitution loading and truncation, mission transitions and hash-chain tamper detection, queue claim/retry/backoff/dead-letter/dependency/approval/lease-recovery/restart-persistence, model fallback and capability blocking, redaction, and the full revenue workflow asserting that nothing is sent.
+
+Neither gate claims a working runtime. Runtime evidence comes from `scripts/host-baseline.sh`, `scripts/health-watch.sh` and `scripts/evidence-bundle.sh` run on the host.
+
 ## APR Isolation
 
 APR validation is declarative: this repository contains no reference that executes against, imports from, or connects to Agent Proof Runtime. No APR checkout is needed or permitted.

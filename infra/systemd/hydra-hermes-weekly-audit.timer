@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly system audit, Sundays 18:00 UTC
+
+[Timer]
+OnCalendar=Sun *-*-* 18:00:00 UTC
+RandomizedDelaySec=600
+Persistent=true
+Unit=hydra-hermes-weekly-audit.service
+
+[Install]
+WantedBy=timers.target

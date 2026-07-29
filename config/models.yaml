@@ -1,0 +1,88 @@
+# Model routing catalogue.
+#
+# `models` describes what each model can do. `routes` maps a task class onto a
+# preferred model, ordered fallbacks and an optional local model. The router walks
+# that chain and BLOCKS with a reason rather than substituting a model that lacks a
+# required capability.
+#
+# Health is runtime state, not configuration: it lives in the health table under
+# the worker state directory and is refreshed by scripts/health-watch.sh.
+
+version: 1
+
+defaults:
+  route_base_url: https://inference.local/v1
+  max_attempts_per_model: 2
+  degraded_after_failures: 3
+  down_after_failures: 5
+
+models:
+  router-default:
+    provider: nvidia-router
+    context_window: 128000
+    local: false
+    capabilities: [text, reasoning, code, tools, long_context]
+    notes: Default routed pool selected during onboarding (`routed`).
+
+  router-fast:
+    provider: nvidia-router
+    context_window: 32000
+    local: false
+    capabilities: [text, classification]
+    notes: Low-latency class for triage and classification.
+
+  router-reasoning:
+    provider: nvidia-router
+    context_window: 200000
+    local: false
+    capabilities: [text, reasoning, code, long_context]
+
+  router-vision:
+    provider: nvidia-router
+    context_window: 64000
+    local: false
+    capabilities: [text, vision]
+
+  local-fallback:
+    provider: local
+    context_window: 16000
+    local: true
+    capabilities: [text, classification]
+    notes: >
+      Placeholder for an on-host model. It is intentionally listed with a narrow
+      capability set so the router refuses to hand it code or vision work.
+
+routes:
+  FAST_CLASSIFICATION:
+    preferred: router-fast
+    fallback: [router-default]
+    local: local-fallback
+  CODE_GENERATION:
+    preferred: router-default
+    fallback: [router-reasoning]
+  CODE_REVIEW:
+    preferred: router-reasoning
+    fallback: [router-default]
+  DEEP_REASONING:
+    preferred: router-reasoning
+    fallback: [router-default]
+  RESEARCH:
+    preferred: router-default
+    fallback: [router-reasoning]
+  CONTENT:
+    preferred: router-default
+    fallback: [router-fast]
+  VISION:
+    preferred: router-vision
+    fallback: []
+  LONG_CONTEXT:
+    preferred: router-reasoning
+    fallback: [router-default]
+  LOCAL_PRIVATE:
+    preferred: local-fallback
+    fallback: []
+    local: local-fallback
+  FALLBACK:
+    preferred: router-default
+    fallback: [router-fast]
+    local: local-fallback

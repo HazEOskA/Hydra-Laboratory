@@ -21,6 +21,11 @@ SIMULATE="${HERMES_WORKER_SIMULATE:-0}"
 
 PROMPT_GUARD='Constraints: answer in at most 12 short lines; do not modify, create, or delete any file; do not call external tools, networks, or web search; if you cannot answer inside the sandbox, reply exactly UNAVAILABLE.'
 
+SOUL_FILE="${HERMES_SOUL_FILE:-$repo_root/SOUL.md}"
+SOUL_PREAMBLE_CHARS="${HERMES_SOUL_PREAMBLE_CHARS:-4000}"
+soul_sha=""
+soul_preamble=""
+
 mode="dry-run"
 max_cycles=0
 
@@ -104,6 +109,23 @@ redact() {
 
 today() { date -u +%Y-%m-%d; }
 now_epoch() { date -u +%s; }
+
+# The constitution is only real if it reaches the model. Load it once per run,
+# verify its structure, and refuse to prompt without it.
+load_soul() {
+  local status
+  status="$(PYTHONPATH="$repo_root/lib${PYTHONPATH:+:$PYTHONPATH}" \
+    HERMES_SOUL_FILE="$SOUL_FILE" python3 -m hermes.cli soul status)" \
+    || die "Constitution could not be loaded from $SOUL_FILE" 5
+  soul_sha="$(printf '%s' "$status" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
+  local structure_ok
+  structure_ok="$(printf '%s' "$status" | python3 -c 'import json,sys; print(json.load(sys.stdin)["structure_ok"])')"
+  [[ "$structure_ok" == "True" ]] || die "Constitution is missing required sections: $SOUL_FILE" 5
+  soul_preamble="$(PYTHONPATH="$repo_root/lib${PYTHONPATH:+:$PYTHONPATH}" \
+    HERMES_SOUL_FILE="$SOUL_FILE" python3 -m hermes.cli soul preamble \
+    --max-chars "$SOUL_PREAMBLE_CHARS")"
+  [[ -n "$soul_preamble" ]] || die "Constitution preamble is empty: $SOUL_FILE" 5
+}
 
 budget_used() {
   local file
@@ -204,7 +226,7 @@ record_run() {
   record="$(
     TASK_ID="$task_id" CATEGORY="$category" STATUS="$status" EXIT_CODE="$exit_code" \
     DURATION="$duration" DIGEST="$digest" EXCERPT="$excerpt" SIMULATED="$SIMULATE" \
-    SANDBOX="$SANDBOX" python3 - <<'PY'
+    SANDBOX="$SANDBOX" SOUL_SHA="$soul_sha" python3 - <<'PY'
 import datetime, json, os
 now = datetime.datetime.now(datetime.timezone.utc)
 print(json.dumps({
@@ -219,6 +241,7 @@ print(json.dumps({
     "output_sha256": os.environ["DIGEST"],
     "excerpt": os.environ["EXCERPT"],
     "simulated": os.environ["SIMULATED"] == "1",
+    "soul_sha256": os.environ.get("SOUL_SHA", ""),
 }, sort_keys=True))
 PY
   )"
@@ -254,7 +277,7 @@ run_task() {
   local task_id="$1" category="$2" max_runtime="$3" prompt="$4"
   local started ended duration exit_code status output digest excerpt
 
-  prompt="${prompt}"$'\n'"${PROMPT_GUARD}"
+  prompt="${soul_preamble}"$'\n\n---\n\n'"${prompt}"$'\n'"${PROMPT_GUARD}"
 
   budget_consume
   started="$(now_epoch)"
@@ -299,7 +322,23 @@ print(worst)
 PY
 }
 
+soul_summary() {
+  PYTHONPATH="$repo_root/lib${PYTHONPATH:+:$PYTHONPATH}" HERMES_SOUL_FILE="$SOUL_FILE" \
+    python3 -m hermes.cli soul status 2>/dev/null \
+    | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print("NOT LOADED")
+    raise SystemExit(0)
+state = "structure ok" if data["structure_ok"] else "SECTIONS MISSING"
+print(data["version"] + " (" + state + ")")' \
+    || printf 'NOT LOADED'
+}
+
 print_status() {
+  printf 'constitution:     %s\n' "$(soul_summary)"
   printf 'state dir:        %s\n' "$STATE_DIR"
   printf 'task dir:         %s\n' "$TASK_DIR"
   printf 'prompts today:    %s/%s\n' "$(budget_used)" "$DAILY_PROMPT_CAP"
@@ -362,6 +401,8 @@ fi
 
 trap 'log "stopping on signal"; exit 0' INT TERM
 
+load_soul
+log "constitution loaded sha256=${soul_sha:0:16} chars=${#soul_preamble}"
 log "duty cycle starting sandbox=$SANDBOX tasks=$TASK_DIR state=$STATE_DIR cap=$DAILY_PROMPT_CAP/day"
 
 cycles=0

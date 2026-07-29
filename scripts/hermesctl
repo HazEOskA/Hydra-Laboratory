@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Operator entry point for the Hermes control plane.
+set -Eeuo pipefail
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$repo_root/lib${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m hermes.cli "$@"

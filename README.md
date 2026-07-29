@@ -8,6 +8,7 @@ GitHub-first operational control repository for running Hermes inside an NVIDIA 
 - Remote runtime: active Contabo/QEMU host connected privately through Tailscale; host baseline ready
 - NemoClaw/Hermes baseline: validated — runtime PASS and controlled first prompt PASS
 - Continuous duty cycle: defined and statically validated; enable on the runtime host per [CONTINUOUS_OPERATION.md](docs/CONTINUOUS_OPERATION.md)
+- God-Layer control plane: constitution, permission engine, mission ledger, durable queue, model routing, automations and revenue pipeline — implemented and tested offline; see [GOD_LAYER.md](docs/GOD_LAYER.md)
 - Baseline target: Hermes + NVIDIA Model Router
 - Sandbox: `hydra-hermes-lab`
 - Provider selector: `routed`
@@ -71,6 +72,31 @@ a single file: `touch $HERMES_WORKER_STATE_DIR/STOP`. See
 [CONTINUOUS_OPERATION.md](docs/CONTINUOUS_OPERATION.md) for installation,
 spend control, and operator commands.
 
+## Control Plane
+
+`SOUL.md` is the operational constitution and is injected into every duty-cycle
+prompt; its SHA-256 is stamped on every journal record. `scripts/hermesctl` is the
+operator surface over the whole control plane.
+
+```bash
+scripts/hermesctl health                              # soul, tools, models, queue, ledger
+scripts/hermesctl permissions classify email send     # GREEN / YELLOW / RED decision
+scripts/hermesctl queue list --status WAITING_FOR_APPROVAL
+scripts/hermesctl queue approve <task_id> --approver OSA --expires-minutes 30
+scripts/hermesctl models route VISION --require vision
+scripts/hermesctl ledger verify                       # hash-chain integrity
+scripts/hermesctl revenue status
+```
+
+Actions are classified GREEN (dispatch), YELLOW (checkpoint, audit, dispatch) or
+RED (block this task, request scoped approval). A RED task blocks only itself.
+Sending, publishing, production deploys and money movement are RED in the tool
+registry, in the escalation patterns, and — for outreach — in the database itself.
+
+Host operations live in `scripts/host-baseline.sh`, `scripts/host-backup.sh`,
+`scripts/health-watch.sh` and `scripts/evidence-bundle.sh`. They run on
+`hydra-hermes-runtime-01`, never in CI.
+
 ## Validation Commands
 
 ```bash
@@ -78,6 +104,7 @@ make static-check
 scripts/remote-preflight.sh
 scripts/validate-runtime.sh
 make worker-check worker-loop-check
+make godlayer-check python-tests
 ```
 
 Real runtime checks require the remote host. GitHub Actions intentionally does not simulate a passing NemoClaw runtime.
