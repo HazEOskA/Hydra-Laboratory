@@ -21,7 +21,8 @@ for file in SOUL.md config/tools.yaml config/models.yaml config/schedule.yaml \
   lib/hermes/permissions.py lib/hermes/ledger.py lib/hermes/queue.py \
   lib/hermes/router.py lib/hermes/revenue.py lib/hermes/soul.py lib/hermes/cli.py \
   scripts/hermesctl scripts/host-baseline.sh scripts/host-backup.sh \
-  scripts/health-watch.sh scripts/evidence-bundle.sh docs/GOD_LAYER.md; do
+  scripts/health-watch.sh scripts/evidence-bundle.sh lib/hermes/probe.py \
+  docs/GOD_LAYER.md docs/RUNTIME_FINDINGS.md; do
   [[ -s "$file" ]] && pass "$file exists" || fail "$file is missing or empty"
 done
 
@@ -192,6 +193,11 @@ grep -q "RAISE(ABORT, 'outreach requires a scoped OSA approval reference')" lib/
 grep -q 'MAX_ACTIVE_TASKS' lib/hermes/queue.py \
   && pass "queue concurrency is bounded" \
   || fail "queue concurrency limit is missing"
+
+# A health table that nobody populates blocks every route forever.
+grep -q 'models probe' scripts/health-watch.sh \
+  && pass "health watch refreshes provider health before judging the route" \
+  || fail "nothing populates the model health table"
 
 # -- no secrets in the control plane -------------------------------------
 if grep -rnE 'nvapi-[A-Za-z0-9_-]{8,}|tskey-(auth|client|api)-' lib/ config/ SOUL.md 2>/dev/null; then

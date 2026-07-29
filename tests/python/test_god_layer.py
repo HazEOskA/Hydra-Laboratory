@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sqlite3
 import sys
 import tempfile
@@ -38,6 +39,7 @@ from hermes.revenue import (  # noqa: E402
     generate_outreach_draft,
     score_lead,
 )
+from hermes.probe import ProbeError, extract_json, probe, read_status  # noqa: E402
 from hermes.router import HealthTable, ModelRouter, ProviderHealth  # noqa: E402
 
 
@@ -518,6 +520,93 @@ class TestRouter(TempStoreCase):
 
     def test_unknown_model_defaults_to_down(self) -> None:
         self.assertEqual(self.health.status_of("router-default"), "DOWN")
+
+
+# -- live runtime probe ---------------------------------------------------
+
+
+def _status_stub(payload: dict) -> str:
+    """Mimic nemohermes: a human line, then the JSON object."""
+    return (
+        "printf '%s\\n' \"\u2713 Active gateway set to 'nemoclaw'\" "
+        + shlex.quote(json.dumps(payload))
+    )
+
+
+class TestProbe(TempStoreCase):
+    READY = {
+        "schemaVersion": 1, "name": "hydra-hermes-lab", "found": True, "agent": "hermes",
+        "phase": "Ready", "model": "nvidia/nemotron-3-super-120b-a12b",
+        "provider": "nvidia-prod",
+        "liveRoute": {"provider": "nvidia-prod", "model": "nvidia/nemotron-3-super-120b-a12b"},
+        "routeDrift": None,
+    }
+
+    def _health(self) -> HealthTable:
+        return HealthTable(self.tmp / "model-health.json")
+
+    def test_json_is_extracted_past_the_cli_banner(self) -> None:
+        payload = extract_json("\u2713 Active gateway set to 'nemoclaw'\n" + json.dumps(self.READY))
+        self.assertEqual(payload["name"], "hydra-hermes-lab")
+
+    def test_output_without_json_raises(self) -> None:
+        with self.assertRaises(ProbeError):
+            extract_json("command not found")
+
+    def test_ready_sandbox_records_healthy_and_unblocks_routing(self) -> None:
+        os.environ["HERMES_STATUS_CMD"] = _status_stub(self.READY)
+        self.addCleanup(os.environ.pop, "HERMES_STATUS_CMD", None)
+        health = self._health()
+        result = probe("hydra-hermes-lab", health=health)
+        self.assertEqual(result["health_status"], "HEALTHY")
+        self.assertEqual(result["provider"], "nvidia-prod")
+        self.assertTrue(result["in_catalogue"])
+        decision = ModelRouter(health=health).select("FALLBACK")
+        self.assertEqual(decision.selected, "nvidia/nemotron-3-super-120b-a12b")
+
+    def test_provisioning_sandbox_is_down_not_healthy(self) -> None:
+        """The live failure on 2026-07-29: stuck in Provisioning is not usable."""
+        payload = dict(self.READY, phase="Provisioning")
+        os.environ["HERMES_STATUS_CMD"] = _status_stub(payload)
+        self.addCleanup(os.environ.pop, "HERMES_STATUS_CMD", None)
+        health = self._health()
+        result = probe("hydra-hermes-lab", health=health)
+        self.assertEqual(result["health_status"], "DOWN")
+        self.assertFalse(result["ready"])
+        self.assertTrue(ModelRouter(health=health).select("FALLBACK").blocked)
+
+    def test_missing_sandbox_is_down(self) -> None:
+        payload = dict(self.READY, found=False, phase="")
+        os.environ["HERMES_STATUS_CMD"] = _status_stub(payload)
+        self.addCleanup(os.environ.pop, "HERMES_STATUS_CMD", None)
+        self.assertEqual(probe("x", health=self._health())["health_status"], "DOWN")
+
+    def test_unknown_model_records_no_capabilities(self) -> None:
+        payload = dict(self.READY, model="vendor/not-in-catalogue",
+                       liveRoute={"provider": "nvidia-prod", "model": "vendor/not-in-catalogue"})
+        os.environ["HERMES_STATUS_CMD"] = _status_stub(payload)
+        self.addCleanup(os.environ.pop, "HERMES_STATUS_CMD", None)
+        result = probe("hydra-hermes-lab", health=self._health())
+        self.assertEqual(result["recorded_capabilities"], [])
+        self.assertIn("warning", result)
+
+    def test_failed_status_command_raises(self) -> None:
+        os.environ["HERMES_STATUS_CMD"] = "exit 127"
+        self.addCleanup(os.environ.pop, "HERMES_STATUS_CMD", None)
+        with self.assertRaises(ProbeError):
+            read_status("hydra-hermes-lab")
+
+    def test_repeated_failures_accumulate(self) -> None:
+        payload = dict(self.READY, phase="Provisioning")
+        os.environ["HERMES_STATUS_CMD"] = _status_stub(payload)
+        self.addCleanup(os.environ.pop, "HERMES_STATUS_CMD", None)
+        health = self._health()
+        probe("hydra-hermes-lab", health=health)
+        second = probe("hydra-hermes-lab", health=health)
+        entry = health.get(self.READY["model"])
+        assert entry is not None
+        self.assertEqual(entry.recent_failures, 2)
+        self.assertEqual(second["health_status"], "DOWN")
 
 
 # -- redaction ------------------------------------------------------------

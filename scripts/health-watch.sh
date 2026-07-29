@@ -162,6 +162,21 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 
 # -- 9. model route -------------------------------------------------------
+# Refresh provider health from the live sandbox first. Without this the table
+# stays empty, every model reads as DOWN, and the router blocks forever.
+probe_json="$(PYTHONPATH="$repo_root/lib${PYTHONPATH:+:$PYTHONPATH}" \
+  python3 -m hermes.cli models probe 2>/dev/null || true)"
+probe_phase="$(printf '%s' "${probe_json:-{\}}" | python3 -c 'import json,sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get("phase") or d.get("error") or "unknown")
+except Exception: print("unreadable")')"
+case "$probe_phase" in
+  Ready|ready|Running|running) ok "sandbox phase: $probe_phase" ;;
+  probe_failed|unreadable) warn "could not read sandbox status (probe: $probe_phase)" ;;
+  *) crit "sandbox is not serving; phase: $probe_phase" ;;
+esac
+
 # `models route` exits non-zero when it BLOCKS, and that verdict is the thing we
 # need — so capture stdout first and neutralise only the exit status.
 route_json="$(PYTHONPATH="$repo_root/lib${PYTHONPATH:+:$PYTHONPATH}" \

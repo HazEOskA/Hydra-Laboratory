@@ -43,6 +43,20 @@ models:
     local: false
     capabilities: [text, vision]
 
+  # Live model observed on hydra-hermes-runtime-01 on 2026-07-29 via
+  # `nemohermes hydra-hermes-lab status --json`. Note the provider is
+  # `nvidia-prod`, not the `nvidia-router` this repository's architecture lock
+  # (D-002) documents. That discrepancy is recorded, not silently normalised —
+  # see docs/RUNTIME_FINDINGS.md.
+  nvidia/nemotron-3-super-120b-a12b:
+    provider: nvidia-prod
+    context_window: 0        # unknown; 0 disables the window check rather than inventing a limit
+    local: false
+    capabilities: [text, reasoning, code, tools, long_context]
+    notes: >
+      Capabilities are inferred from the model family and are unverified. Vision
+      is deliberately not claimed, so a VISION task blocks instead of routing here.
+
   local-fallback:
     provider: local
     context_window: 16000
@@ -55,34 +69,34 @@ models:
 routes:
   FAST_CLASSIFICATION:
     preferred: router-fast
-    fallback: [router-default]
+    fallback: [router-default, nvidia/nemotron-3-super-120b-a12b]
     local: local-fallback
   CODE_GENERATION:
     preferred: router-default
-    fallback: [router-reasoning]
+    fallback: [router-reasoning, nvidia/nemotron-3-super-120b-a12b]
   CODE_REVIEW:
     preferred: router-reasoning
-    fallback: [router-default]
+    fallback: [router-default, nvidia/nemotron-3-super-120b-a12b]
   DEEP_REASONING:
     preferred: router-reasoning
-    fallback: [router-default]
+    fallback: [router-default, nvidia/nemotron-3-super-120b-a12b]
   RESEARCH:
     preferred: router-default
-    fallback: [router-reasoning]
+    fallback: [router-reasoning, nvidia/nemotron-3-super-120b-a12b]
   CONTENT:
     preferred: router-default
-    fallback: [router-fast]
+    fallback: [router-fast, nvidia/nemotron-3-super-120b-a12b]
   VISION:
     preferred: router-vision
     fallback: []
   LONG_CONTEXT:
     preferred: router-reasoning
-    fallback: [router-default]
+    fallback: [router-default, nvidia/nemotron-3-super-120b-a12b]
   LOCAL_PRIVATE:
     preferred: local-fallback
     fallback: []
     local: local-fallback
   FALLBACK:
     preferred: router-default
-    fallback: [router-fast]
+    fallback: [router-fast, nvidia/nemotron-3-super-120b-a12b]
     local: local-fallback

@@ -26,6 +26,7 @@ from .permissions import (
     UnknownToolError,
     dispatch_plan,
 )
+from .probe import ProbeError, probe as probe_runtime
 from .queue import TaskQueue
 from .revenue import (
     Lead,
@@ -209,6 +210,18 @@ def cmd_models_health(args: argparse.Namespace) -> int:
             },
         }
     )
+
+
+def cmd_models_probe(args: argparse.Namespace) -> int:
+    """Read the live sandbox route and record it as provider health."""
+    health = HealthTable(args.health_file)
+    try:
+        result = probe_runtime(args.sandbox, health=health)
+    except ProbeError as error:
+        emit({"error": "probe_failed", "detail": str(error)})
+        return 2
+    emit(result)
+    return 0 if result["health_status"] == "HEALTHY" else 1
 
 
 def cmd_models_route(args: argparse.Namespace) -> int:
@@ -431,6 +444,9 @@ def build_parser() -> argparse.ArgumentParser:
         dest="command", required=True
     )
     models.add_parser("health").set_defaults(func=cmd_models_health)
+    probe_parser = models.add_parser("probe")
+    probe_parser.add_argument("--sandbox", default=None)
+    probe_parser.set_defaults(func=cmd_models_probe)
     route = models.add_parser("route")
     route.add_argument("task_class")
     route.add_argument("--require", action="append")
