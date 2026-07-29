@@ -1,0 +1,24 @@
+[Unit]
+Description=Hydra Hermes sanitized duty-cycle report
+Documentation=https://github.com/HazEOskA/hydra-hermes-lab/blob/main/docs/CONTINUOUS_OPERATION.md
+
+[Service]
+Type=oneshot
+User=hydra
+Group=hydra
+WorkingDirectory=/home/hydra/hydra-hermes-lab
+EnvironmentFile=/etc/hydra-hermes/worker.env
+ExecStart=/home/hydra/hydra-hermes-lab/scripts/hermes-report.sh --hours 24
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/hydra-hermes
+StateDirectory=hydra-hermes
+UMask=0077

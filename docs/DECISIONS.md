@@ -55,3 +55,7 @@ The active baseline host is the provisioned Contabo VPS identified by DMI as `QE
 ## D-014: Validated Routed Baseline
 
 The Contabo runtime, Hermes sandbox, NVIDIA Model Router route, credential boundary, listener exposure controls, scoped Docker-bridge firewall rules, and one real controlled inference prompt completed the baseline gates on 2026-07-18. Further integrations are a separate follow-up milestone. Status: accepted.
+
+## D-015: Supervised Continuous Duty Cycle
+
+Hermes runs continuously through `scripts/hermes-worker.sh` on the locked runtime host: one due task per cycle, one controlled prompt per task, a redacted journal record per run, and sanitized reports on a timer. Continuous operation is bounded by a daily prompt cap, a minimum interval between prompts, per-task cadence, per-prompt timeouts, an operator `STOP` file, and a sticky circuit breaker. Every prompt keeps the read-only posture of the controlled first prompt, so this does not reopen D-005. Full model output is never stored, and the loop never receives the provider credential. Status: accepted.

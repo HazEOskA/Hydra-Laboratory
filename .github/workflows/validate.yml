@@ -24,6 +24,8 @@ jobs:
             $(find . -type f \( -name '*.yaml' -o -name '*.yml' \) -print)
       - name: Validate locked Hetzner infrastructure
         run: make infra-check tailscale-bootstrap-check remote-workflow-check
+      - name: Validate continuous duty cycle
+        run: make worker-check worker-loop-check
       - name: Validate documentation
         run: make docs-check
       - name: Scan for secrets

@@ -17,6 +17,7 @@
 - Treat `TS_RUNTIME_AUTH_KEY` and every rendered cloud-init copy as bootstrap secrets. The key must be one-off, non-reusable, non-ephemeral, short-lived, tagged exactly `tag:hydra-runtime`, and pre-approved when device approval is active.
 - Pass the Tailscale key to `tailscale up` only through a mode-`0600` temporary file and `--auth-key=file:…`; delete it immediately after enrollment. Never expose its value in argv, tracing, logs, artifacts, evidence, or the repository.
 - Run `scripts/secret-scan.sh` before every commit.
+- A line may carry the `secret-scan: synthetic fixture` marker only when it holds invented credential-shaped text needed to prove redaction, as in `tests/test-worker-loop.sh`. Every exemption stays greppable and must be reviewed like any other change.
 
 ## Host Model
 
@@ -45,6 +46,10 @@ The private repository stores a dedicated, non-reused Hydra SSH identity and rev
 The GitHub-hosted runner is ephemeral and reaches the host only through the private tailnet. Public SSH remains closed; ports 22, 4000, 8642, and 18789 must not receive public Hetzner firewall rules. The bridge cannot change either the Hetzner firewall or tailnet policy.
 
 Repository secrets are used because they work for private repositories across current non-legacy GitHub plans. GitHub Environment secrets for private repositories require Pro, Team, or Enterprise. Required reviewers for private-repository environments must not be represented as active without a plan that actually supplies that protection; this baseline makes no such claim.
+
+## Continuous Duty Cycle
+
+`scripts/hermes-worker.sh` prompts Hermes through `nemohermes … exec` and never receives `NVIDIA_INFERENCE_API_KEY`. Captured output is redacted before it reaches disk, and only a SHA-256 digest plus a 240-character redacted excerpt is journaled; full model output is never stored. The loop runs as `hydra` under a hardened systemd unit whose only writable path is `/var/lib/hydra-hermes`. Spending is bounded by a daily prompt cap, a minimum interval, per-task cadence, and per-prompt timeouts; an operator `STOP` file and a sticky circuit breaker stop it without uninstalling anything. Simulation mode is test-only: it requires an explicit stub command, never calls the sandbox, and stamps every record it writes, so simulated runs cannot be presented as runtime evidence.
 
 ## Sandbox Proof
 

@@ -1,0 +1,14 @@
+{
+  "id": "self-report",
+  "title": "Self-report on the duty cycle",
+  "category": "report",
+  "enabled": true,
+  "priority": 20,
+  "cadence_minutes": 720,
+  "max_runtime_seconds": 240,
+  "prompt": [
+    "These are sanitized counters from your own duty cycle: {{CYCLE_SUMMARY}}",
+    "Summarize what they say about the current run rate and reliability, in at most five lines.",
+    "If the failure count is above zero, state the single most likely cause an operator should check first. If nothing is notable, say so plainly instead of padding."
+  ]
+}

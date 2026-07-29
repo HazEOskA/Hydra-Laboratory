@@ -39,6 +39,14 @@ Record only a redacted outcome summary and PASS/FAIL. A status/doctor result alo
 
 Final baseline outcome on 2026-07-18: **PASS**. See [RUNTIME_EVIDENCE.md](RUNTIME_EVIDENCE.md).
 
+## Continuous Duty-Cycle Gate
+
+`make worker-check` runs `scripts/validate-worker.sh`: every task manifest satisfies the queue contract in [tasks/README.md](../tasks/README.md); ids are unique and match their filenames; prompts stay inside the size limit and contain no external URLs, mutation verbs, credential-shaped material, or unknown placeholders; the worker keeps its `--execute` gate, host lock, budget knobs, single-instance lock, and redaction markers; the systemd units are hardened, run as `hydra`, and never enable simulation; and `config/worker.env.example` assigns no credential-shaped values.
+
+`make worker-loop-check` runs `tests/test-worker-loop.sh` offline against a stub command and a scratch state directory. It proves that the default invocation is a dry run that records nothing, that each due task runs once per cadence, that credential-shaped output never reaches the state directory, that journal records are well formed and stamped as simulated, that the daily cap and `STOP` file bound spending, that the circuit breaker trips and stays tripped until `--resume`, that the simulation hooks are gated in both directions, and that reports render sanitized and flag simulated data.
+
+Neither gate claims a working runtime. Continuous operation is only proven on the host, by `scripts/hermes-worker.sh --status` and a report covering real, non-simulated records.
+
 ## APR Isolation
 
 APR validation is declarative: this repository contains no reference that executes against, imports from, or connects to Agent Proof Runtime. No APR checkout is needed or permitted.

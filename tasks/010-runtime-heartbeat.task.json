@@ -1,0 +1,13 @@
+{
+  "id": "runtime-heartbeat",
+  "title": "Runtime heartbeat",
+  "category": "maintenance",
+  "enabled": true,
+  "priority": 10,
+  "cadence_minutes": 30,
+  "max_runtime_seconds": 120,
+  "prompt": [
+    "Report your runtime identity as a compact list: agent name, sandbox name, inference route host, and whether any raw provider API key is visible in your environment.",
+    "State only what you can observe from inside the sandbox. Do not guess."
+  ]
+}

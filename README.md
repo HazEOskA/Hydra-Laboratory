@@ -7,6 +7,7 @@ GitHub-first operational control repository for running Hermes inside an NVIDIA 
 - Repository scaffold: ready
 - Remote runtime: active Contabo/QEMU host connected privately through Tailscale; host baseline ready
 - NemoClaw/Hermes baseline: validated — runtime PASS and controlled first prompt PASS
+- Continuous duty cycle: defined and statically validated; enable on the runtime host per [CONTINUOUS_OPERATION.md](docs/CONTINUOUS_OPERATION.md)
 - Baseline target: Hermes + NVIDIA Model Router
 - Sandbox: `hydra-hermes-lab`
 - Provider selector: `routed`
@@ -48,12 +49,35 @@ This repository contains infrastructure definitions, safe operator scripts, vali
 
 No command in this repository should be run against an unreviewed host. Installation and destructive operations have explicit execution gates.
 
+## Continuous Operation
+
+After the baseline gates are green, the runtime host runs a supervised 24/7 duty
+cycle: `scripts/hermes-worker.sh` picks the next due task from `tasks/`, sends one
+controlled prompt through the sandbox boundary, records a redacted journal entry,
+and repeats under a daily prompt cap, a minimum interval between prompts, and a
+circuit breaker. `scripts/hermes-report.sh` turns the journal into sanitized
+Markdown reports, and Hermes summarizes its own counters through the `self-report`
+task.
+
+```bash
+scripts/hermes-worker.sh --dry-run     # show the schedule, send nothing
+scripts/hermes-worker.sh --status      # counters, budget, breaker state
+scripts/hermes-report.sh --stdout      # sanitized report for the last 24h
+```
+
+The loop never handles `NVIDIA_INFERENCE_API_KEY`, every prompt carries a fixed
+read-only guard clause, and full model output is never written to disk. Pausing is
+a single file: `touch $HERMES_WORKER_STATE_DIR/STOP`. See
+[CONTINUOUS_OPERATION.md](docs/CONTINUOUS_OPERATION.md) for installation,
+spend control, and operator commands.
+
 ## Validation Commands
 
 ```bash
 make static-check
 scripts/remote-preflight.sh
 scripts/validate-runtime.sh
+make worker-check worker-loop-check
 ```
 
 Real runtime checks require the remote host. GitHub Actions intentionally does not simulate a passing NemoClaw runtime.
@@ -74,6 +98,6 @@ The only repository-defined remote bridge is the manually dispatched [remote pre
 
 ## Future Hydra Work
 
-The default routed baseline is validated. Custom router pools, additional tools, MCP servers, messaging, web search, and multi-agent Hydra orchestration remain deferred to a separate follow-up milestone.
+The default routed baseline is validated and the duty cycle keeps it exercised. Custom router pools, additional tools, MCP servers, messaging, web search, and multi-agent Hydra orchestration remain deferred to a separate follow-up milestone.
 
 Sanitized final results are recorded in [RUNTIME_EVIDENCE.md](docs/RUNTIME_EVIDENCE.md).
