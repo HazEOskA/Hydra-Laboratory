@@ -10,6 +10,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  statuses: write
 
 jobs:
   remote-preflight:
@@ -193,3 +194,36 @@ jobs:
           [[ -s "$report" ]] || { echo 'BLOCKED: no sanitized report was generated.' >&2; exit 1; }
           grep -Fqx 'REMOTE SSH: PASS' "$report" || { echo 'BLOCKED: SSH preflight did not connect.' >&2; exit 1; }
           grep -Fqx 'OVERALL: READY' "$report" || { echo 'BLOCKED: remote host preflight is not ready.' >&2; exit 1; }
+
+
+      - name: Expose bridge run identifier
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/hydra-remote-preflight.txt"
+          state=failure
+          outcome=REPORT_UNAVAILABLE
+          if grep -Fqx 'OVERALL: READY' "$report" 2>/dev/null; then
+            state=success
+            outcome=READY
+          elif [[ -s "$report" ]]; then
+            outcome=BLOCKED
+          fi
+          target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          payload="$(jq -cn \
+            --arg state "$state" \
+            --arg target_url "$target_url" \
+            --arg description "$outcome" \
+            --arg context "hermes-preflight/bridge" \
+            '{state:$state,target_url:$target_url,description:$description,context:$context}')"
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data "$payload" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            >/dev/null
