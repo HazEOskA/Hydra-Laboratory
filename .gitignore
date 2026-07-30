@@ -21,3 +21,11 @@ cloud-init-output.log
 .ssh/
 *.known_hosts
 id_hydra_runtime
+worker-state/
+*.jsonl
+*.db
+*.db-wal
+*.db-shm
+evidence/
+recovery/
+backups/

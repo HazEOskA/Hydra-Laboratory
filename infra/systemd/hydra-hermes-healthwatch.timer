@@ -1,0 +1,11 @@
+[Unit]
+Description=Hermes health watch every 5 minutes
+
+[Timer]
+OnCalendar=*:0/5
+RandomizedDelaySec=30
+Persistent=true
+Unit=hydra-hermes-healthwatch.service
+
+[Install]
+WantedBy=timers.target

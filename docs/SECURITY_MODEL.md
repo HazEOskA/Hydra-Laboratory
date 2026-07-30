@@ -17,6 +17,7 @@
 - Treat `TS_RUNTIME_AUTH_KEY` and every rendered cloud-init copy as bootstrap secrets. The key must be one-off, non-reusable, non-ephemeral, short-lived, tagged exactly `tag:hydra-runtime`, and pre-approved when device approval is active.
 - Pass the Tailscale key to `tailscale up` only through a mode-`0600` temporary file and `--auth-key=file:…`; delete it immediately after enrollment. Never expose its value in argv, tracing, logs, artifacts, evidence, or the repository.
 - Run `scripts/secret-scan.sh` before every commit.
+- A line may carry the `secret-scan: synthetic fixture` marker only when it holds invented credential-shaped text needed to prove redaction, as in `tests/test-worker-loop.sh`. Every exemption stays greppable and must be reviewed like any other change.
 
 ## Host Model
 
@@ -45,6 +46,18 @@ The private repository stores a dedicated, non-reused Hydra SSH identity and rev
 The GitHub-hosted runner is ephemeral and reaches the host only through the private tailnet. Public SSH remains closed; ports 22, 4000, 8642, and 18789 must not receive public Hetzner firewall rules. The bridge cannot change either the Hetzner firewall or tailnet policy.
 
 Repository secrets are used because they work for private repositories across current non-legacy GitHub plans. GitHub Environment secrets for private repositories require Pro, Team, or Enterprise. Required reviewers for private-repository environments must not be represented as active without a plan that actually supplies that protection; this baseline makes no such claim.
+
+## Continuous Duty Cycle
+
+`scripts/hermes-worker.sh` prompts Hermes through `nemohermes … exec` and never receives `NVIDIA_INFERENCE_API_KEY`. Captured output is redacted before it reaches disk, and only a SHA-256 digest plus a 240-character redacted excerpt is journaled; full model output is never stored. The loop runs as `hydra` under a hardened systemd unit whose only writable path is `/var/lib/hydra-hermes`. Spending is bounded by a daily prompt cap, a minimum interval, per-task cadence, and per-prompt timeouts; an operator `STOP` file and a sticky circuit breaker stop it without uninstalling anything. Simulation mode is test-only: it requires an explicit stub command, never calls the sandbox, and stamps every record it writes, so simulated runs cannot be presented as runtime evidence.
+
+## God-Layer Trust Plane
+
+Every tool call is classified GREEN/YELLOW/RED before dispatch. SOUL.md's RED list is compiled into escalation patterns, so a GREEN tool cannot be used to perform a RED action; a disabled tool is refused rather than downgraded; and an unclassified action on a split-permission tool defaults to RED. Approvals are scoped to one task and expire, and one RED task never freezes unrelated GREEN work.
+
+The evidence ledger is append-only at the storage layer and hash-chained, so a record cannot be rewritten without the chain check failing. A mission cannot reach `COMPLETED` without passing `VALIDATING` and supplying evidence. Outreach cannot be recorded without a scoped approval reference — enforced by a database trigger, not only by application code. Projected revenue is stored in separate columns from realised revenue and can never be reported as cash.
+
+Host inventories mask credential-shaped environment values as `abcd...wxyz` and never record a raw value.
 
 ## Sandbox Proof
 

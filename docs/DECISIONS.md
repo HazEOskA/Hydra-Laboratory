@@ -55,3 +55,15 @@ The active baseline host is the provisioned Contabo VPS identified by DMI as `QE
 ## D-014: Validated Routed Baseline
 
 The Contabo runtime, Hermes sandbox, NVIDIA Model Router route, credential boundary, listener exposure controls, scoped Docker-bridge firewall rules, and one real controlled inference prompt completed the baseline gates on 2026-07-18. Further integrations are a separate follow-up milestone. Status: accepted.
+
+## D-015: Supervised Continuous Duty Cycle
+
+Hermes runs continuously through `scripts/hermes-worker.sh` on the locked runtime host: one due task per cycle, one controlled prompt per task, a redacted journal record per run, and sanitized reports on a timer. Continuous operation is bounded by a daily prompt cap, a minimum interval between prompts, per-task cadence, per-prompt timeouts, an operator `STOP` file, and a sticky circuit breaker. Every prompt keeps the read-only posture of the controlled first prompt, so this does not reopen D-005. Full model output is never stored, and the loop never receives the provider credential. Status: accepted.
+
+## D-016: God-Layer Control Plane
+
+Hermes gains a control plane in this repository: `SOUL.md` as the operational constitution injected into every prompt and hashed onto every record; a data-driven GREEN/YELLOW/RED permission classifier in `config/tools.yaml`; a mission state machine whose `COMPLETED` state is reachable only through `VALIDATING` and only with evidence; an append-only hash-chained evidence ledger; a durable SQLite task queue with backoff, dead letters, idempotency, dependencies, leases and crash recovery at concurrency 1; a capability-aware model router that BLOCKS rather than substitute an unsuitable model; five scheduled automations, none of which may be RED; and a revenue pipeline that can draft but structurally cannot send. Two failure modes are asserted in CI: routine work must stay GREEN, and a GREEN tool must not be usable to perform a RED action. Status: accepted.
+
+## D-017: Control-Plane Repair Runs On The Host
+
+Diagnosis and repair of the live runtime execute on `hydra-hermes-runtime-01` by running the operator scripts there. Neither GitHub Actions nor a cloud coding workspace has a route to the host, by design (D-009), so neither can claim a runtime repair. A cloud session may build, test and commit the control plane; only a host run produces runtime evidence. Status: accepted.

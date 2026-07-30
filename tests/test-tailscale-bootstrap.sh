@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2015
+# shellcheck disable=SC1003,SC2016
 set -Eeuo pipefail
 
 cloud_init="infra/cloud-init.yaml"
@@ -71,10 +72,28 @@ else
 fi
 
 printf -v key_prefix '%s%s' 'ts' 'key-'
-if git grep -nF -- "$key_prefix" -- . ':(exclude)scripts/secret-scan.sh' ':(exclude)tests/test-tailscale-bootstrap.sh' >/dev/null; then
+
+# Two complementary checks. The literal check keeps the prefix out of ordinary
+# files; the detector files below must carry it because their job is matching it.
+# The pattern check then runs everywhere with no exclusions, so a real key cannot
+# hide inside a detector either.
+if git grep -nF -- "$key_prefix" -- . \
+  ':(exclude)scripts/secret-scan.sh' \
+  ':(exclude)scripts/validate-worker.sh' \
+  ':(exclude)scripts/validate-godlayer.sh' \
+  ':(exclude)scripts/hermes-worker.sh' \
+  ':(exclude)lib/hermes/redact.py' \
+  ':(exclude)tests/test-tailscale-bootstrap.sh' >/dev/null; then
   fail 'possible real Tailscale credential prefix committed'
 else
-  pass 'no Tailscale auth-key material committed'
+  pass 'no Tailscale auth-key material outside the redaction detectors'
+fi
+
+if git grep -nE -- "${key_prefix}(auth|client|api)-[A-Za-z0-9]{10,}" -- . \
+  ':(exclude)tests/test-tailscale-bootstrap.sh' >/dev/null; then
+  fail 'a string shaped like a real Tailscale auth key is committed'
+else
+  pass 'no key-shaped Tailscale material anywhere in the tree'
 fi
 
 if [[ "$(grep -Ec '^[[:space:]]+workflow_dispatch:' "$workflow")" -eq 1 ]] \

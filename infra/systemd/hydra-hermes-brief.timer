@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily operations brief at 19:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 19:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=hydra-hermes-brief.service
+
+[Install]
+WantedBy=timers.target

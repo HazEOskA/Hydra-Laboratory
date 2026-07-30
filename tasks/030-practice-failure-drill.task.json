@@ -1,0 +1,14 @@
+{
+  "id": "practice-failure-drill",
+  "title": "Practice: failure-mode drill",
+  "category": "practice",
+  "enabled": true,
+  "priority": 40,
+  "cadence_minutes": 240,
+  "max_runtime_seconds": 240,
+  "prompt": [
+    "Practice exercise, reasoning only.",
+    "Pick one plausible failure of a routed inference sandbox: route unreachable, model router down, credential rotated, disk pressure, or clock skew.",
+    "Give the first three read-only checks an operator should run, in order, and the observation that would distinguish that failure from the others."
+  ]
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily revenue operations at 08:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=hydra-hermes-revenue.service
+
+[Install]
+WantedBy=timers.target

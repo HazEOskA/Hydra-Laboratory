@@ -39,6 +39,22 @@ Record only a redacted outcome summary and PASS/FAIL. A status/doctor result alo
 
 Final baseline outcome on 2026-07-18: **PASS**. See [RUNTIME_EVIDENCE.md](RUNTIME_EVIDENCE.md).
 
+## Continuous Duty-Cycle Gate
+
+`make worker-check` runs `scripts/validate-worker.sh`: every task manifest satisfies the queue contract in [tasks/README.md](../tasks/README.md); ids are unique and match their filenames; prompts stay inside the size limit and contain no external URLs, mutation verbs, credential-shaped material, or unknown placeholders; the worker keeps its `--execute` gate, host lock, budget knobs, single-instance lock, and redaction markers; the systemd units are hardened, run as `hydra`, and never enable simulation; and `config/worker.env.example` assigns no credential-shaped values.
+
+`make worker-loop-check` runs `tests/test-worker-loop.sh` offline against a stub command and a scratch state directory. It proves that the default invocation is a dry run that records nothing, that each due task runs once per cadence, that credential-shaped output never reaches the state directory, that journal records are well formed and stamped as simulated, that the daily cap and `STOP` file bound spending, that the circuit breaker trips and stays tripped until `--resume`, that the simulation hooks are gated in both directions, and that reports render sanitized and flag simulated data.
+
+Neither gate claims a working runtime. Continuous operation is only proven on the host, by `scripts/hermes-worker.sh --status` and a report covering real, non-simulated records.
+
+## God-Layer Control-Plane Gate
+
+`make godlayer-check` runs `scripts/validate-godlayer.sh`: the constitution loads and contains every required section; the duty cycle actually injects it; routine operations stay GREEN while irreversible and outward-facing operations are RED and require approval; a GREEN tool cannot be used to perform a RED action; the payments tool stays disabled; every enabled tool declares a health check; `config/schedule.yaml`, the automation scripts and the systemd timers agree; no scheduled job is RED; no automation makes an outbound request or can send mail; the evidence ledger is append-only with a validation gate before `COMPLETED`; outreach cannot be recorded without a scoped approval; and queue concurrency is bounded.
+
+`make python-tests` runs `tests/python/test_god_layer.py` offline against temporary stores: permission classification and escalation, constitution loading and truncation, mission transitions and hash-chain tamper detection, queue claim/retry/backoff/dead-letter/dependency/approval/lease-recovery/restart-persistence, model fallback and capability blocking, redaction, and the full revenue workflow asserting that nothing is sent.
+
+Neither gate claims a working runtime. Runtime evidence comes from `scripts/host-baseline.sh`, `scripts/health-watch.sh` and `scripts/evidence-bundle.sh` run on the host.
+
 ## APR Isolation
 
 APR validation is declarative: this repository contains no reference that executes against, imports from, or connects to Agent Proof Runtime. No APR checkout is needed or permitted.

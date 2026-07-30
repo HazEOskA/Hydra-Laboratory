@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily sanitized Hydra Hermes duty-cycle report
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=hydra-hermes-report.service
+
+[Install]
+WantedBy=timers.target
