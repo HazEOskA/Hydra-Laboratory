@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" href="data:,">
+    <title>Hydra Minion Control Plane</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">H</div>
+      <div>
+        <p class="eyebrow">HYDRA / AUTONOMOUS OPERATIONS</p>
+        <h1>Minion Control Plane</h1>
+      </div>
+      <div class="topbar-status">
+        <span class="live-dot"></span>
+        <span>LOCAL TRUST BOUNDARY</span>
+      </div>
+    </header>
+
+    <div id="error-banner" class="error-banner" role="alert" hidden></div>
+
+    <div class="shell">
+      <aside class="sidebar">
+        <section class="panel create-panel">
+          <div class="section-heading">
+            <span>01</span>
+            <h2>Mission intake</h2>
+          </div>
+          <form id="mission-form">
+            <label>
+              Mission name
+              <input name="title" maxlength="120" required value="Verify Hydra vertical slice">
+            </label>
+            <label>
+              Execution request
+              <textarea name="request" maxlength="5000" required>Implement and verify a controlled typed change in the safe fixture repository.</textarea>
+            </label>
+            <label>
+              Repository
+              <input name="repository" value="fixture://hydra-safe-demo" readonly>
+            </label>
+            <div class="form-row">
+              <label>
+                Backend
+                <select name="backend">
+                  <option value="deterministic-local">Deterministic local</option>
+                </select>
+              </label>
+              <label>
+                Failure drill
+                <select name="failureMode">
+                  <option value="none">None</option>
+                  <option value="tests_once">Tests fail once</option>
+                </select>
+              </label>
+            </div>
+            <button class="primary full" type="submit">Compile mission</button>
+          </form>
+        </section>
+
+        <section class="panel queue-panel">
+          <div class="section-heading">
+            <span>02</span>
+            <h2>Mission queue</h2>
+          </div>
+          <div id="mission-list" class="mission-list" aria-live="polite"></div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <section id="empty-state" class="empty-state">
+          <div class="empty-glyph">⌁</div>
+          <p class="eyebrow">NO MISSION SELECTED</p>
+          <h2>Compile a mission to open the execution graph.</h2>
+          <p>Every node will be backed by persisted state, logs, artifacts, approvals and commit-bound evidence.</p>
+        </section>
+
+        <div id="mission-view" hidden>
+          <section class="mission-hero panel">
+            <div>
+              <p class="eyebrow">ACTIVE MISSION</p>
+              <h2 id="mission-title"></h2>
+              <p id="mission-request" class="mission-request"></p>
+            </div>
+            <div id="mission-actions" class="actions"></div>
+          </section>
+
+          <section id="mission-metrics" class="metric-grid" aria-label="Mission facts"></section>
+
+          <section class="panel pipeline-panel">
+            <div class="section-heading wide">
+              <span>03</span>
+              <div>
+                <h2>Execution pipeline</h2>
+                <p>Dependency-ordered, immutable transition history</p>
+              </div>
+              <div id="pipeline-legend" class="legend">
+                <span><i class="passed"></i>Passed</span>
+                <span><i class="running"></i>Running</span>
+                <span><i class="blocked"></i>Approval</span>
+                <span><i class="failed"></i>Failed</span>
+              </div>
+            </div>
+            <div id="pipeline" class="pipeline" role="list"></div>
+          </section>
+
+          <section class="detail-grid">
+            <article class="panel node-detail">
+              <div class="section-heading"><span>04</span><h2>Node inspector</h2></div>
+              <div id="node-detail"></div>
+            </article>
+            <article class="panel terminal-panel">
+              <div class="section-heading"><span>05</span><h2>Execution logs</h2></div>
+              <div id="logs" class="terminal" aria-live="polite"></div>
+            </article>
+          </section>
+
+          <section class="detail-grid evidence-grid">
+            <article class="panel">
+              <div class="section-heading"><span>06</span><h2>Artifacts</h2></div>
+              <div id="artifacts" class="artifact-list"></div>
+            </article>
+            <article class="panel">
+              <div class="section-heading"><span>07</span><h2>APR evidence</h2></div>
+              <div id="evidence"></div>
+            </article>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
