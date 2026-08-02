@@ -4,135 +4,75 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#08090c">
     <link rel="icon" href="data:,">
-    <title>Hydra Minion Control Plane</title>
+    <link rel="preload" href="/assets/brand/hydra-wordmark.webp" as="image" type="image/webp">
+    <title>HYDRA — Hermes Lab Command Center</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to command center</a>
+    <div class="atmosphere atmosphere-purple" aria-hidden="true"></div>
+    <div class="atmosphere atmosphere-gold" aria-hidden="true"></div>
+    <div class="circuit-grid" aria-hidden="true"></div>
     <div class="noise" aria-hidden="true"></div>
-    <header class="topbar">
-      <div class="brand-mark" aria-hidden="true">H</div>
-      <div>
-        <p class="eyebrow">HYDRA / AUTONOMOUS OPERATIONS</p>
-        <h1>Minion Control Plane</h1>
-      </div>
-      <div class="topbar-status">
-        <span class="live-dot"></span>
-        <span>LOCAL TRUST BOUNDARY</span>
-      </div>
-    </header>
 
-    <div id="error-banner" class="error-banner" role="alert" hidden></div>
-
-    <div class="shell">
-      <aside class="sidebar">
-        <section class="panel create-panel">
-          <div class="section-heading">
-            <span>01</span>
-            <h2>Mission intake</h2>
+    <div id="app" class="app-shell">
+      <aside id="sidebar" class="sidebar" aria-label="Primary navigation">
+        <a class="brand" href="#michael-angelo" aria-label="HYDRA Hermes Lab home">
+          <img src="/assets/brand/hydra-wordmark.webp" width="222" height="76" alt="HYDRA Hermes Lab">
+        </a>
+        <nav id="primary-nav" class="primary-nav"></nav>
+        <section class="sidebar-oracle" aria-labelledby="sidebar-oracle-title">
+          <img src="/assets/illustrations/zgredek-observatory.webp" alt="" width="84" height="84">
+          <div>
+            <p class="micro-label">DRIFT GUARD</p>
+            <h2 id="sidebar-oracle-title">Zgredek</h2>
+            <span class="status-label status-unknown">NOT CONNECTED</span>
           </div>
-          <form id="mission-form">
-            <label>
-              Mission name
-              <input name="title" maxlength="120" required value="Verify Hydra vertical slice">
-            </label>
-            <label>
-              Execution request
-              <textarea name="request" maxlength="5000" required>Implement and verify a controlled typed change in the safe fixture repository.</textarea>
-            </label>
-            <label>
-              Repository
-              <input name="repository" value="fixture://hydra-safe-demo" readonly>
-            </label>
-            <div class="form-row">
-              <label>
-                Backend
-                <select name="backend">
-                  <option value="deterministic-local">Deterministic local</option>
-                </select>
-              </label>
-              <label>
-                Failure drill
-                <select name="failureMode">
-                  <option value="none">None</option>
-                  <option value="tests_once">Tests fail once</option>
-                </select>
-              </label>
-            </div>
-            <button class="primary full" type="submit">Compile mission</button>
-          </form>
         </section>
-
-        <section class="panel queue-panel">
-          <div class="section-heading">
-            <span>02</span>
-            <h2>Mission queue</h2>
-          </div>
-          <div id="mission-list" class="mission-list" aria-live="polite"></div>
-        </section>
+        <footer class="sidebar-footer">
+          <span>CONTROL · OBSERVE · DOMINATE</span>
+          <small>UI LOCK v0.1 · LOCAL</small>
+        </footer>
       </aside>
 
-      <main class="workspace">
-        <section id="empty-state" class="empty-state">
-          <div class="empty-glyph">⌁</div>
-          <p class="eyebrow">NO MISSION SELECTED</p>
-          <h2>Compile a mission to open the execution graph.</h2>
-          <p>Every node will be backed by persisted state, logs, artifacts, approvals and commit-bound evidence.</p>
-        </section>
+      <div id="sidebar-scrim" class="sidebar-scrim" hidden></div>
 
-        <div id="mission-view" hidden>
-          <section class="mission-hero panel">
-            <div>
-              <p class="eyebrow">ACTIVE MISSION</p>
-              <h2 id="mission-title"></h2>
-              <p id="mission-request" class="mission-request"></p>
-            </div>
-            <div id="mission-actions" class="actions"></div>
-          </section>
+      <div class="app-main">
+        <header class="system-header">
+          <button id="menu-button" class="icon-button menu-button" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation">☰</button>
+          <div class="route-heading">
+            <p class="micro-label">HYDRA / HERMES LAB</p>
+            <h1 id="route-title">Michael Angelo</h1>
+          </div>
+          <div id="header-metrics" class="header-metrics" aria-label="System summary"></div>
+          <button id="emergency-button" class="danger-button" type="button">Emergency stop</button>
+          <div class="operator-profile" aria-label="Current operator OSA, final authority">
+            <span class="operator-avatar">O</span>
+            <span><strong>OSA</strong><small>FINAL AUTHORITY</small></span>
+          </div>
+        </header>
 
-          <section id="mission-metrics" class="metric-grid" aria-label="Mission facts"></section>
-
-          <section class="panel pipeline-panel">
-            <div class="section-heading wide">
-              <span>03</span>
-              <div>
-                <h2>Execution pipeline</h2>
-                <p>Dependency-ordered, immutable transition history</p>
-              </div>
-              <div id="pipeline-legend" class="legend">
-                <span><i class="passed"></i>Passed</span>
-                <span><i class="running"></i>Running</span>
-                <span><i class="blocked"></i>Approval</span>
-                <span><i class="failed"></i>Failed</span>
-              </div>
-            </div>
-            <div id="pipeline" class="pipeline" role="list"></div>
-          </section>
-
-          <section class="detail-grid">
-            <article class="panel node-detail">
-              <div class="section-heading"><span>04</span><h2>Node inspector</h2></div>
-              <div id="node-detail"></div>
-            </article>
-            <article class="panel terminal-panel">
-              <div class="section-heading"><span>05</span><h2>Execution logs</h2></div>
-              <div id="logs" class="terminal" aria-live="polite"></div>
-            </article>
-          </section>
-
-          <section class="detail-grid evidence-grid">
-            <article class="panel">
-              <div class="section-heading"><span>06</span><h2>Artifacts</h2></div>
-              <div id="artifacts" class="artifact-list"></div>
-            </article>
-            <article class="panel">
-              <div class="section-heading"><span>07</span><h2>APR evidence</h2></div>
-              <div id="evidence"></div>
-            </article>
-          </section>
-        </div>
-      </main>
+        <div id="error-banner" class="error-banner" role="alert" hidden></div>
+        <main id="main-content" class="workspace" tabindex="-1" aria-live="polite"></main>
+      </div>
     </div>
+
+    <dialog id="emergency-dialog" class="command-dialog" aria-labelledby="emergency-title">
+      <form method="dialog">
+        <div class="dialog-sigil" aria-hidden="true">!</div>
+        <p class="micro-label danger-text">CRITICAL OPERATOR ACTION</p>
+        <h2 id="emergency-title">Cancel all cancellable local missions?</h2>
+        <p>This calls the existing mission cancellation endpoint for each active local mission. It does not stop Hermes, a VPS, or any production runtime.</p>
+        <div id="emergency-scope" class="dialog-scope"></div>
+        <div class="dialog-actions">
+          <button value="cancel" class="secondary-button">Keep running</button>
+          <button id="confirm-emergency" value="confirm" class="danger-button">Confirm local stop</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="/app.js" defer></script>
   </body>
 </html>

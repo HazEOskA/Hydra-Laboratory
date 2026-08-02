@@ -168,9 +168,17 @@ class HydraRequestHandler(BaseHTTPRequestHandler):
 
     def _static(self, path: str) -> None:
         relative = "index.html" if path in ("", "/") else unquote(path.lstrip("/"))
-        if relative not in {"index.html", "app.js", "styles.css"}:
+        root_files = {"index.html", "app.js", "styles.css"}
+        is_asset = relative.startswith("assets/") and Path(relative).suffix in {
+            ".png",
+            ".webp",
+        }
+        if relative not in root_files and not is_asset:
             raise NotFoundError(f"unknown path: {path}")
-        candidate = (self.server.web_root / relative).resolve(strict=True)
+        try:
+            candidate = (self.server.web_root / relative).resolve(strict=True)
+        except (FileNotFoundError, OSError) as error:
+            raise NotFoundError(f"unknown path: {path}") from error
         try:
             candidate.relative_to(self.server.web_root)
         except ValueError as error:
