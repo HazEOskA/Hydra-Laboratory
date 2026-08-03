@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="pl">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,33 +7,33 @@
     <meta name="theme-color" content="#08090c">
     <link rel="icon" href="data:,">
     <link rel="preload" href="/assets/brand/hydra-wordmark.webp" as="image" type="image/webp">
-    <title>HYDRA — Hermes Lab Command Center</title>
+    <title>HYDRA — Centrum dowodzenia Hermes Lab</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <a class="skip-link" href="#main-content">Skip to command center</a>
+    <a class="skip-link" href="#main-content">Przejdź do centrum dowodzenia</a>
     <div class="atmosphere atmosphere-purple" aria-hidden="true"></div>
     <div class="atmosphere atmosphere-gold" aria-hidden="true"></div>
     <div class="circuit-grid" aria-hidden="true"></div>
     <div class="noise" aria-hidden="true"></div>
 
     <div id="app" class="app-shell">
-      <aside id="sidebar" class="sidebar" aria-label="Primary navigation">
-        <a class="brand" href="#michael-angelo" aria-label="HYDRA Hermes Lab home">
+      <aside id="sidebar" class="sidebar" aria-label="Nawigacja główna">
+        <a class="brand" href="#dashboard" aria-label="HYDRA Hermes Lab — strona główna">
           <img src="/assets/brand/hydra-wordmark.webp" width="222" height="76" alt="HYDRA Hermes Lab">
         </a>
         <nav id="primary-nav" class="primary-nav"></nav>
         <section class="sidebar-oracle" aria-labelledby="sidebar-oracle-title">
           <img src="/assets/illustrations/zgredek-observatory.webp" alt="" width="84" height="84">
           <div>
-            <p class="micro-label">DRIFT GUARD</p>
+            <p class="micro-label">STRAŻNIK DRIFTU</p>
             <h2 id="sidebar-oracle-title">Zgredek</h2>
-            <span class="status-label status-unknown">NOT CONNECTED</span>
+            <span class="status-label status-unknown">NIEPODŁĄCZONY</span>
           </div>
         </section>
         <footer class="sidebar-footer">
-          <span>CONTROL · OBSERVE · DOMINATE</span>
-          <small>UI LOCK v0.1 · LOCAL</small>
+          <span>KONTROLA · OBSERWACJA · DOMINACJA</span>
+          <small>UI LOCK v0.1 · LOKALNIE</small>
         </footer>
       </aside>
 
@@ -41,16 +41,16 @@
 
       <div class="app-main">
         <header class="system-header">
-          <button id="menu-button" class="icon-button menu-button" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation">☰</button>
+          <button id="menu-button" class="icon-button menu-button" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Otwórz nawigację">☰</button>
           <div class="route-heading">
             <p class="micro-label">HYDRA / HERMES LAB</p>
-            <h1 id="route-title">Michael Angelo</h1>
+            <h1 id="route-title">Centrum dowodzenia</h1>
           </div>
-          <div id="header-metrics" class="header-metrics" aria-label="System summary"></div>
-          <button id="emergency-button" class="danger-button" type="button">Emergency stop</button>
-          <div class="operator-profile" aria-label="Current operator OSA, final authority">
+          <div id="header-metrics" class="header-metrics" aria-label="Podsumowanie systemu"></div>
+          <button id="emergency-button" class="danger-button" type="button">Zatrzymanie awaryjne</button>
+          <div class="operator-profile" aria-label="Bieżący operator OSA, najwyższy autorytet">
             <span class="operator-avatar">O</span>
-            <span><strong>OSA</strong><small>FINAL AUTHORITY</small></span>
+            <span><strong>OSA</strong><small>NAJWYŻSZY AUTORYTET</small></span>
           </div>
         </header>
 
@@ -62,13 +62,13 @@
     <dialog id="emergency-dialog" class="command-dialog" aria-labelledby="emergency-title">
       <form method="dialog">
         <div class="dialog-sigil" aria-hidden="true">!</div>
-        <p class="micro-label danger-text">CRITICAL OPERATOR ACTION</p>
-        <h2 id="emergency-title">Cancel all cancellable local missions?</h2>
-        <p>This calls the existing mission cancellation endpoint for each active local mission. It does not stop Hermes, a VPS, or any production runtime.</p>
+        <p class="micro-label danger-text">KRYTYCZNE DZIAŁANIE OPERATORA</p>
+        <h2 id="emergency-title">Anulować wszystkie zatrzymywalne misje lokalne?</h2>
+        <p>Wywołuje istniejący endpoint anulowania dla każdej aktywnej misji lokalnej. Nie zatrzymuje Hermesa, VPS-a ani żadnego runtime’u produkcyjnego.</p>
         <div id="emergency-scope" class="dialog-scope"></div>
         <div class="dialog-actions">
-          <button value="cancel" class="secondary-button">Keep running</button>
-          <button id="confirm-emergency" value="confirm" class="danger-button">Confirm local stop</button>
+          <button value="cancel" class="secondary-button">Zostaw uruchomione</button>
+          <button id="confirm-emergency" value="confirm" class="danger-button">Potwierdź zatrzymanie lokalne</button>
         </div>
       </form>
     </dialog>

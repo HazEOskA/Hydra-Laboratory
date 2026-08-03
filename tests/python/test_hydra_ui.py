@@ -19,20 +19,34 @@ from hydra_control.server import create_server  # noqa: E402
 from hydra_control.service import MissionService  # noqa: E402
 
 
+# The canonical Polish operator views, in declaration order.
 EXPECTED_NAVIGATION = [
-    "Dashboard",
-    "Policies AI",
+    "Centrum dowodzenia",
+    "Projekty",
+    "Misje",
+    "Kolejka",
     "Michael Angelo",
-    "Missions",
-    "Agent Fleet",
-    "Repositories",
-    "Sandboxes",
-    "Approvals",
-    "APR Evidence",
-    "Artifacts",
-    "Infrastructure",
-    "Audit Log",
-    "Settings",
+    "Workery / Minions",
+    "Sandboksy",
+    "Modele",
+    "Budżety",
+    "Zatwierdzenia",
+    "Zdrowie systemu",
+    "Logi",
+    "Artefakty",
+    "Dowody",
+    "Recovery",
+    "Repozytoria",
+    "Polityki AI",
+    "Dziennik audytu",
+    "Ustawienia",
+]
+
+# Every view the canon requires must be reachable by route id.
+REQUIRED_ROUTES = [
+    "dashboard", "projects", "missions", "queue", "michael-angelo",
+    "workers", "sandboxes", "models", "budgets", "approvals",
+    "health", "logs", "artifacts", "evidence", "recovery",
 ]
 
 
@@ -85,11 +99,24 @@ class HydraCommandCenterCase(unittest.TestCase):
         source = (REPO_ROOT / "web" / "app.js").read_text(encoding="utf-8")
         positions = [source.index(f'"{label}"') for label in EXPECTED_NAVIGATION]
         self.assertEqual(positions, sorted(positions))
-        self.assertIn('route: "michael-angelo"', source)
-        self.assertIn("NOT CONNECTED", source)
+        self.assertIn('route: "dashboard"', source)
+        # Honest runtime reporting must survive translation.
+        self.assertIn("NIEPODŁĄCZONE", source)
         self.assertIn("UNKNOWN", source)
         self.assertIn("Drift Guard", source)
         self.assertNotIn("innerHTML", source)
+
+    def test_every_canonical_route_has_a_renderer(self) -> None:
+        source = (REPO_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        for route in REQUIRED_ROUTES:
+            with self.subTest(route=route):
+                self.assertIn(f'case "{route}":', source)
+
+    def test_ui_is_polish(self) -> None:
+        html = (REPO_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<html lang="pl">', html)
+        self.assertIn("Zatrzymanie awaryjne", html)
+        self.assertIn("NAJWYŻSZY AUTORYTET", html)
 
     def test_real_api_contract_drives_mission_inventory(self) -> None:
         payload = json.dumps(
@@ -124,7 +151,7 @@ class HydraCommandCenterCase(unittest.TestCase):
     def test_mission_intake_uses_a_real_submit_control(self) -> None:
         source = (REPO_ROOT / "web" / "app.js").read_text(encoding="utf-8")
         self.assertIn('type: options.type || "button"', source)
-        self.assertIn('ariaLabel: "Compile local mission", type: "submit"', source)
+        self.assertIn('ariaLabel: "Zleć misję kodową", type: "submit"', source)
 
 
 if __name__ == "__main__":
