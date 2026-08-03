@@ -135,9 +135,23 @@ classify_key_probe() {
 }
 
 # Resolve the sandbox's container id without assuming a naming scheme.
+#
+# More than one container can carry the sandbox name — an orphan alongside the
+# live openshell-<sandbox>-<uuid> one. Taking the first match silently targeted
+# whichever docker listed first. A live container (running or restarting) now
+# wins, and an ambiguous set is reported on stderr instead of being guessed at.
 sandbox_container_id() {
-  docker ps -a --no-trunc --format '{{.ID}} {{.Names}} {{.Image}}' 2>/dev/null \
-    | grep -F "$SANDBOX" | awk 'NR==1{print $1}'
+  local rows live
+  rows="$(docker ps -a --no-trunc --format '{{.ID}} {{.State}} {{.Names}}' 2>/dev/null \
+          | grep -F "$SANDBOX" || true)"
+  [[ -n "$rows" ]] || return 1
+
+  if [[ "$(wc -l <<<"$rows")" -gt 1 ]]; then
+    printf 'multiple containers match sandbox %s:\n%s\n' "$SANDBOX" "$rows" >&2
+  fi
+  live="$(awk '$2=="running" || $2=="restarting" {print $1; exit}' <<<"$rows")"
+  [[ -n "$live" ]] && { printf '%s\n' "$live"; return 0; }
+  awk 'NR==1{print $1}' <<<"$rows"
 }
 
 # Report a change without performing it unless --execute was given.

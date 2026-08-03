@@ -111,6 +111,22 @@ if [[ "$STATUS" == "exited" || "$STATUS" == "created" ]]; then
 elif [[ "$STATUS" == "running" ]]; then
   printf '  NOTE    container already running; the failure is above the container layer\n'
   REPAIR="none-container-running"
+elif [[ "$STATUS" == "restarting" ]]; then
+  # A crash loop. Starting it again is pointless — docker is already doing that,
+  # 19 times over in the observed case. What the operator needs is the reason
+  # the process exits, so capture it here rather than sending them back for it.
+  printf '  NOTE    container status=restarting: docker is already restarting it (%s restarts).\n' "$RESTARTS"
+  printf '  NOTE    the start ladder cannot help a crash loop; capturing the crash instead.\n'
+  REPAIR="none-crash-loop"
+  docker logs --tail 200 "$CID" >"$RUN_DIR/crash-logs.txt" 2>&1 || true
+  redact <"$RUN_DIR/crash-logs.txt" >"$RUN_DIR/crash-logs.redacted.txt" || true
+  printf '\n  ---- last 30 log lines from the crashing container ----\n'
+  tail -30 "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null | sed 's/^/  | /' \
+    || printf '  | (no logs captured)\n'
+  printf '  ------------------------------------------------------\n\n'
+  printf '  Restart policy (a loop keeps the state moving while you read it):\n'
+  docker inspect -f '  | RestartPolicy={{.HostConfig.RestartPolicy.Name}} MaxRetry={{.HostConfig.RestartPolicy.MaximumRetryCount}}' "$CID" 2>/dev/null || true
+  printf '\n'
 else
   printf '  NOTE    container status=%s is outside the start ladder\n' "$STATUS"
 fi
