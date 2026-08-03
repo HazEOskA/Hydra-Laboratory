@@ -161,12 +161,20 @@ sandbox_container_id() {
 
 # Report a change without performing it unless --execute was given.
 # Usage: act "<description>" cmd args...
+# ACT_RC holds the exit code of the last executed action so callers can branch
+# on it. A failed action is reported with its code and does not abort the run:
+# under `set -e` a non-zero `nemohermes start` previously killed the script
+# before it reached its AFTER section, so the operator got no verdict at all.
+# This is not error masking — the code is printed and available to the caller.
+ACT_RC=0
 act() {
   local desc="$1"; shift
   printf '  ACTION  %s\n' "$desc"
+  ACT_RC=0
   if [[ "${EXECUTE:-0}" -eq 1 ]]; then
-    "$@"
-  else
-    printf '          (dry-run: not executed) %s\n' "$*"
+    "$@" || ACT_RC=$?
+    (( ACT_RC != 0 )) && printf '          (exit=%s) action failed; run continues to its verdict\n' "$ACT_RC"
+    return 0
   fi
+  printf '          (dry-run: not executed) %s\n' "$*"
 }

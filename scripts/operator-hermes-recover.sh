@@ -106,123 +106,109 @@ PHASE_BEFORE="$(verify_phase || true)"
 printf '  BEFORE  sandbox phase=%s\n' "${PHASE_BEFORE:-UNKNOWN}"
 
 REPAIR="none"
-if [[ "$STATUS" == "exited" || "$STATUS" == "created" ]]; then
-  REPAIR="docker-start"
-  act "start the existing stopped container $CID (no config change)" \
-    docker start "$CID"
-elif [[ "$STATUS" == "running" ]]; then
-  printf '  NOTE    container already running; the failure is above the container layer\n'
-  REPAIR="none-container-running"
-elif [[ "$STATUS" == "restarting" ]]; then
-  # A crash loop. Starting it again is pointless — docker is already doing that,
-  # 19 times over in the observed case. What the operator needs is the reason
-  # the process exits, so capture it here rather than sending them back for it.
-  printf '  NOTE    container status=restarting: docker is already restarting it (%s restarts).\n' "$RESTARTS"
-  printf '  NOTE    the start ladder cannot help a crash loop; capturing the crash instead.\n'
-  REPAIR="none-crash-loop"
+DRIFT=0
+
+# -- root cause, independent of container status ---------------------------
+# The refusal is written to the log whether the container is exited, restarting
+# or briefly up. Classifying it only in the restarting branch meant an exited
+# container skipped the diagnosis entirely — and with it the approved rebuild,
+# which is exactly what happened on the runtime host.
+if [[ "$STATUS" != "running" || "${PHASE_BEFORE,,}" == "error" ]]; then
   docker logs --tail 200 "$CID" >"$RUN_DIR/crash-logs.txt" 2>&1 || true
   redact <"$RUN_DIR/crash-logs.txt" >"$RUN_DIR/crash-logs.redacted.txt" || true
-  printf '\n  ---- last 30 log lines from the crashing container ----\n'
+  printf '\n  ---- last 30 log lines from the sandbox ----\n'
   tail -30 "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null | sed 's/^/  | /' \
     || printf '  | (no logs captured)\n'
-  printf '  ------------------------------------------------------\n\n'
+  printf '  -------------------------------------------\n\n'
 
-  # Most of a crashing sandbox's log is OPA symlink noise. The lines that decide
-  # what to do are few and named, so classify them instead of leaving the
-  # operator to read past the noise.
   if grep -q 'HERMES_MCP_CONFIG_DRIFT' "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null; then
+    DRIFT=1
     REPAIR="none-config-drift"
     printf '  ROOT CAUSE  HERMES_MCP_CONFIG_DRIFT\n'
     printf '              The sandbox is not crashing: it is refusing to start. Hermes\n'
     printf '              hashes the MCP/gateway intent, compares it against the persisted\n'
-    printf '              state, and terminates with exit 1 when they disagree. Docker then\n'
-    printf '              restarts it, which is the loop you are seeing.\n'
+    printf '              state, and terminates with exit 1 when they disagree.\n'
     printf '              Starting it again cannot help — the refusal is deterministic.\n'
-    printf '              Vendor remedy: rebuild the sandbox from its NemoClaw registry\n'
-    printf '              state. That is DESTRUCTIVE and needs explicit OSA approval; this\n'
-    printf '              bundle will not do it for you.\n\n'
-    grep -n '\[SECURITY\]' "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null \
-      | tail -5 | sed 's/^/  | /'
+    printf '              Vendor remedy: rebuild from the NemoClaw registry state, which\n'
+    printf '              is DESTRUCTIVE and requires --rebuild-approved-by.\n\n'
+    grep -n '\[SECURITY\]' "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null | tail -5 | sed 's/^/  | /'
     printf '\n'
   elif grep -q '\[SECURITY\]' "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null; then
     printf '  ROOT CAUSE  a [SECURITY] check terminated the sandbox; see the lines above\n\n'
   fi
 
-  printf '  Restart policy (a loop keeps the state moving while you read it):\n'
+  printf '  Restart policy:\n'
   docker inspect -f '  | RestartPolicy={{.HostConfig.RestartPolicy.Name}} MaxRetry={{.HostConfig.RestartPolicy.MaximumRetryCount}}' "$CID" 2>/dev/null || true
   printf '\n'
-
-  # -- OSA-approved rebuild -------------------------------------------------
-  # The one destructive path in this bundle. It is reachable only when all four
-  # hold: the drift marker was actually found, --execute was given, an approver
-  # was named, and this is the config-drift branch. Any other failure mode still
-  # exits BLOCKED — this flag is not a general "rebuild whenever" escape hatch.
-  if [[ "$REPAIR" == "none-config-drift" && -n "$REBUILD_APPROVED_BY" && $EXECUTE -eq 1 ]]; then
-    printf '  OSA APPROVAL recorded: rebuild authorised by "%s"\n' "$REBUILD_APPROVED_BY"
-    {
-      printf 'approved_by=%s\napproved_at=%s\nroot_cause=HERMES_MCP_CONFIG_DRIFT\ncontainer=%s\nrestarts_before=%s\n' \
-        "$REBUILD_APPROVED_BY" "$(utc)" "$CID" "$RESTARTS"
-    } >"$RUN_DIR/REBUILD-APPROVAL.txt"
-
-    # Pre-rebuild capture. After the rebuild this evidence cannot be recreated.
-    nemohermes "$SANDBOX" doctor --json 2>&1 | redact >"$RUN_DIR/pre-rebuild-doctor.json" || true
-    nemoclaw list --json 2>&1 | redact >"$RUN_DIR/pre-rebuild-nemoclaw-list.json" || true
-    docker inspect "$CID" 2>&1 | redact >"$RUN_DIR/pre-rebuild-inspect.json" || true
-
-    # The sandbox must be RUNNING for the rebuild, not stopped. `rebuild` raises
-    # the shields lock and takes its own backup through the live OpenShell
-    # container; with the sandbox down it fails at "Failed to auto-unlock
-    # shields" and does nothing. An earlier version of this script stopped it
-    # first, which guaranteed that failure.
-    printf '  BEFORE  restarts=%s status=%s\n' "$RESTARTS" "$STATUS"
-    act "start the sandbox so rebuild can unlock shields and back it up" \
-      nemohermes "$SANDBOX" start
-
-    # Wait for the OpenShell-labelled container to actually be running. The
-    # sandbox crash-loops, so this catches a live window rather than assuming one.
-    if [[ $EXECUTE -eq 1 ]]; then
-      for _ in $(seq 1 24); do
-        if docker ps --filter "label=openshell.ai/sandbox-name=$SANDBOX" \
-             --filter status=running --format '{{.ID}}' 2>/dev/null | grep -q .; then
-          printf '  READY   OpenShell container is running; proceeding to rebuild\n'
-          break
-        fi
-        sleep 5
-      done
-    fi
-
-    act "rebuild the sandbox from its NemoClaw registry state" \
-      nemohermes "$SANDBOX" rebuild --yes
-    REPAIR="osa-approved-rebuild"
-
-    # Rebuild returns before the sandbox settles; wait rather than judging early.
-    for _ in $(seq 1 30); do
-      case "$(verify_phase | tr '[:upper:]' '[:lower:]')" in
-        ready|running) break ;;
-      esac
-      sleep 10
-    done
-  elif [[ "$REPAIR" == "none-config-drift" && -z "$REBUILD_APPROVED_BY" ]]; then
-    printf '  HOLD    rebuild is the vendor remedy for this cause but needs approval.\n'
-    printf '          Re-run with --execute --rebuild-approved-by=OSA to authorise it.\n\n'
-  fi
-else
-  printf '  NOTE    container status=%s is outside the start ladder\n' "$STATUS"
 fi
 
-# Ladder step 2: NemoClaw's own start/recover for this sandbox only.
-if [[ "$REPAIR" == "none-container-running" || "$STATUS" == "exited" ]]; then
+# -- decide ----------------------------------------------------------------
+if (( DRIFT == 1 )) && [[ -n "$REBUILD_APPROVED_BY" && $EXECUTE -eq 1 ]]; then
+  printf '  OSA APPROVAL recorded: rebuild authorised by "%s"\n' "$REBUILD_APPROVED_BY"
+  {
+    printf 'approved_by=%s\napproved_at=%s\nroot_cause=HERMES_MCP_CONFIG_DRIFT\ncontainer=%s\nrestarts_before=%s\n' \
+      "$REBUILD_APPROVED_BY" "$(utc)" "$CID" "$RESTARTS"
+  } >"$RUN_DIR/REBUILD-APPROVAL.txt"
+
+  nemohermes "$SANDBOX" doctor --json 2>&1 | redact >"$RUN_DIR/pre-rebuild-doctor.json" || true
+  nemoclaw list --json 2>&1 | redact >"$RUN_DIR/pre-rebuild-nemoclaw-list.json" || true
+  docker inspect "$CID" 2>&1 | redact >"$RUN_DIR/pre-rebuild-inspect.json" || true
+
+  # rebuild raises the shields lock through the LIVE OpenShell container, so the
+  # sandbox must be up. Stopping it first guarantees "Failed to auto-unlock
+  # shields", which an earlier version of this script did.
+  printf '  BEFORE  restarts=%s status=%s\n' "$RESTARTS" "$STATUS"
+  act "start the sandbox so rebuild can unlock shields and back it up" \
+    nemoclaw "$SANDBOX" start
+
+  OS_CID=""
+  for _ in $(seq 1 24); do
+    OS_CID="$(docker ps --filter "label=openshell.ai/sandbox-name=$SANDBOX" \
+              --filter status=running --format '{{.ID}}' 2>/dev/null | head -1)"
+    [[ -n "$OS_CID" ]] && break
+    sleep 5
+  done
+  if [[ -n "$OS_CID" ]]; then
+    printf '  READY   OpenShell container %s is running; proceeding to rebuild\n' "${OS_CID:0:12}"
+  else
+    printf '  WARN    no running OpenShell-labelled container appeared within 120s;\n'
+    printf '          rebuild will most likely refuse to unlock shields.\n'
+  fi
+
+  act "rebuild the sandbox from its NemoClaw registry state" \
+    nemohermes "$SANDBOX" rebuild --yes
+  if (( ACT_RC != 0 )); then
+    printf '  RESULT  rebuild refused (exit=%s). Nothing was destroyed.\n' "$ACT_RC"
+  fi
+  REPAIR="osa-approved-rebuild"
+
+  for _ in $(seq 1 30); do
+    case "$(verify_phase | tr '[:upper:]' '[:lower:]')" in ready|running) break ;; esac
+    sleep 10
+  done
+
+elif (( DRIFT == 1 )); then
+  printf '  HOLD    rebuild is the vendor remedy for this cause but needs approval.\n'
+  printf '          Re-run with --execute --rebuild-approved-by=OSA to authorise it.\n\n'
+
+elif [[ "$STATUS" == "exited" || "$STATUS" == "created" ]]; then
+  REPAIR="docker-start"
+  act "start the existing stopped container $CID (no config change)" docker start "$CID"
   if [[ $EXECUTE -eq 1 ]]; then
     sleep 5
-    PHASE_MID="$(verify_phase || true)"
-    if [[ "${PHASE_MID,,}" != "ready" && "${PHASE_MID,,}" != "running" ]]; then
-      REPAIR="nemohermes-start"
-      act "ask NemoClaw to start this sandbox only" \
-        nemohermes "$SANDBOX" start
-    fi
-  else
-    printf '  ACTION  (dry-run) if still not Ready: nemohermes %s start\n' "$SANDBOX"
+    case "$(verify_phase | tr '[:upper:]' '[:lower:]')" in
+      ready|running) : ;;
+      *) REPAIR="nemoclaw-start"; act "ask NemoClaw to start this sandbox only" nemoclaw "$SANDBOX" start ;;
+    esac
   fi
+
+elif [[ "$STATUS" == "running" ]]; then
+  printf '  NOTE    container already running; the failure is above the container layer\n'
+  REPAIR="none-container-running"
+
+elif [[ "$STATUS" == "restarting" ]]; then
+  printf '  NOTE    docker is already restarting it (%s restarts); starting it again is pointless\n' "$RESTARTS"
+  REPAIR="none-crash-loop"
 fi
 
 # Ladder step 4: the existing recovery script, restricted to its non-destructive
