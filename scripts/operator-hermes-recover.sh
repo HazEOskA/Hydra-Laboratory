@@ -169,12 +169,27 @@ elif [[ "$STATUS" == "restarting" ]]; then
     nemoclaw list --json 2>&1 | redact >"$RUN_DIR/pre-rebuild-nemoclaw-list.json" || true
     docker inspect "$CID" 2>&1 | redact >"$RUN_DIR/pre-rebuild-inspect.json" || true
 
-    # Stop the loop first: rebuilding while docker keeps restarting the old
-    # container means racing a moving target.
+    # The sandbox must be RUNNING for the rebuild, not stopped. `rebuild` raises
+    # the shields lock and takes its own backup through the live OpenShell
+    # container; with the sandbox down it fails at "Failed to auto-unlock
+    # shields" and does nothing. An earlier version of this script stopped it
+    # first, which guaranteed that failure.
     printf '  BEFORE  restarts=%s status=%s\n' "$RESTARTS" "$STATUS"
-    act "stop the sandbox so the restart loop ends" \
-      nemoclaw "$SANDBOX" stop
-    sleep 5
+    act "start the sandbox so rebuild can unlock shields and back it up" \
+      nemohermes "$SANDBOX" start
+
+    # Wait for the OpenShell-labelled container to actually be running. The
+    # sandbox crash-loops, so this catches a live window rather than assuming one.
+    if [[ $EXECUTE -eq 1 ]]; then
+      for _ in $(seq 1 24); do
+        if docker ps --filter "label=openshell.ai/sandbox-name=$SANDBOX" \
+             --filter status=running --format '{{.ID}}' 2>/dev/null | grep -q .; then
+          printf '  READY   OpenShell container is running; proceeding to rebuild\n'
+          break
+        fi
+        sleep 5
+      done
+    fi
 
     act "rebuild the sandbox from its NemoClaw registry state" \
       nemohermes "$SANDBOX" rebuild --yes

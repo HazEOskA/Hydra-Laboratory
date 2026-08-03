@@ -142,7 +142,12 @@ classify_key_probe() {
 # wins, and an ambiguous set is reported on stderr instead of being guessed at.
 sandbox_container_id() {
   local rows live
-  rows="$(docker ps -a --no-trunc --format '{{.ID}} {{.State}} {{.Names}}' 2>/dev/null \
+  # The OpenShell label is authoritative — it is what the vendor tooling itself
+  # looks for. Name matching is only a fallback, and it can pick an unrelated
+  # container that merely has the sandbox name in it.
+  rows="$(docker ps -a --no-trunc --filter "label=openshell.ai/sandbox-name=$SANDBOX" \
+          --format '{{.ID}} {{.State}} {{.Names}}' 2>/dev/null || true)"
+  [[ -n "$rows" ]] || rows="$(docker ps -a --no-trunc --format '{{.ID}} {{.State}} {{.Names}}' 2>/dev/null \
           | grep -F "$SANDBOX" || true)"
   [[ -n "$rows" ]] || return 1
 
