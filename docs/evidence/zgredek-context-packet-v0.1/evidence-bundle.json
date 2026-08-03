@@ -588,9 +588,12 @@
   ],
   "pinnedTo": {
     "branch": "claude/hydra-michael-angelo-launch-bizcvn",
-    "commitSha": "8ad6b08e4924e5680894dec40b2e683ec97b8245",
-    "note": "Pinned to the commit whose runtime produced this capture; this file's parent.",
-    "repository": "HazEOskA/hydra-hermes-lab"
+    "commitSha": "213c717d8a594c8fc57488f09895092569bdb556",
+    "libHydraControlTreeSha": "c9b0e432de1c7eff542cdefa158ae3abdcade8b5",
+    "note": "Pinned to the commit that introduced the Zgredek runtime. The capture was taken from the working tree that became this commit, so unlike the Hydra v0.2 bundle the pin is NOT this file's parent: the parent predates lib/hydra_control/zgredek.py entirely. This corrected bundle is therefore committed one commit later, because a commit cannot contain its own SHA.",
+    "repository": "HazEOskA/hydra-hermes-lab",
+    "verify": "git cat-file -e 213c717d8a594c8fc57488f09895092569bdb556:lib/hydra_control/zgredek.py",
+    "webTreeSha": "93f2a9c3a7bafe43e09d65fa99efa7e246c9e13d"
   },
   "positive": {
     "contextEvents": [
