@@ -65,6 +65,10 @@ const NAV_ITEMS = [
 ];
 
 const ROUTE_TITLES = Object.fromEntries(NAV_ITEMS.map(([id, label]) => [id, label]));
+// Design previews are reachable by route but deliberately absent from the nav:
+// they are mockups, not part of the operator surface.
+ROUTE_TITLES["wallet-design"] = "Portfel / MoonPay — DESIGN PREVIEW";
+ROUTE_TITLES["mailbox-design"] = "Skrzynka mailowa — DESIGN PREVIEW";
 const TERMINAL_STATES = new Set(["COMPLETED", "CANCELLED"]);
 const ACTIVE_STATES = new Set([
   "QUEUED", "FACT_LOADING", "PLANNING", "PROVISIONING", "RUNNING",
@@ -677,13 +681,18 @@ function renderMissionTable(missions) {
     const detail = state.details.get(summary.mission_id);
     const mission = detail?.mission || summary;
     const row = el("button", "data-row data-row-button", null, { type: "button", role: "row" });
+    // data-label drives the mobile card layout: below 760px the header row is
+    // hidden and each cell renders its own label, so status and current stage
+    // stay fully readable instead of scrolling off the right edge.
+    const state_ = statusLabel(mission.state);
+    state_.setAttribute("data-label", "Stan");
     append(row,
-      el("span", "mono", shortSha(mission.mission_id), { role: "cell" }),
-      statusLabel(mission.state),
-      el("span", "progress-cell", `${missionProgress(mission)}%`, { role: "cell" }),
-      el("span", null, mission.current_node_id || "NIE URUCHOMIONO", { role: "cell" }),
-      el("span", null, mission.backend || "NIEZNANY", { role: "cell" }),
-      el("span", null, elapsed(mission.started_at, mission.finished_at), { role: "cell" }),
+      el("span", "mono", shortSha(mission.mission_id), { role: "cell", "data-label": "Misja" }),
+      state_,
+      el("span", "progress-cell", `${missionProgress(mission)}%`, { role: "cell", "data-label": "Postęp" }),
+      el("span", null, mission.current_node_id || "NIE URUCHOMIONO", { role: "cell", "data-label": "Bieżący etap" }),
+      el("span", null, mission.backend || "NIEZNANY", { role: "cell", "data-label": "Worker" }),
+      el("span", null, elapsed(mission.started_at, mission.finished_at), { role: "cell", "data-label": "Czas" }),
     );
     row.addEventListener("click", () => selectMission(mission.mission_id));
     table.append(row);
@@ -1624,6 +1633,189 @@ function renderMissingFeature(key) {
     );
   }
   view.append(panel("Kontrolki", controls, { index: "04", subtitle: "Wyłączone z podaną przyczyną" }));
+
+  const design = el("div");
+  append(design,
+    el("p", "muted-copy",
+      "Ekran docelowy istnieje jako projekt, bez backendu. Otwarcie go nie uruchamia żadnej funkcji."),
+    button("Otwórz DESIGN PREVIEW", "secondary-button", () => navigate(`${key}-design`)));
+  view.append(panel("Projekt docelowy", design, { index: "05" }));
+  return view;
+}
+
+// ---------------------------------------------------- Design previews
+// Target-state mockups. No backend, no fetch, no state. Every figure is marked
+// PRZYKŁAD and every control is disabled, so nothing here can be mistaken for a
+// working screen or for real money and real mail.
+
+function designBanner() {
+  const bar = el("div", "unavailable-block");
+  append(bar,
+    statusLabel("DESIGN PREVIEW — BACKEND NOT IMPLEMENTED"),
+    el("p", "muted-copy",
+      "Ekran docelowy. Nie ma pod nim backendu, żadna wartość nie pochodzi z systemu, każda kontrolka jest wyłączona. Wszystkie liczby są oznaczone jako PRZYKŁAD."),
+    button("Wróć do stanu obecnego buildu", "secondary-button",
+      () => navigate(state.route === "wallet-design" ? "wallet" : "mailbox")),
+  );
+  return bar;
+}
+
+function sample(value) {
+  const wrap = el("span");
+  append(wrap, el("span", "mono", value), el("span", "status-label status-unknown", "PRZYKŁAD"));
+  return wrap;
+}
+
+function dead(label, className = "secondary-button") {
+  return button(label, className, null,
+    { disabled: true, title: "DESIGN PREVIEW — brak backendu, kontrolka nieaktywna" });
+}
+
+function renderWalletDesign() {
+  const view = el("div", "view");
+  view.append(pageIntro("DESIGN PREVIEW · EKRAN DOCELOWY", "Portfel agentów / MoonPay",
+    "Projekt docelowego ekranu środków agenta. Backend nie istnieje.",
+    statusLabel("DESIGN PREVIEW — BACKEND NOT IMPLEMENTED")));
+  view.append(designBanner());
+
+  const balances = el("div", "grid");
+  [["Saldo łączne", "1 240.00 USD"], ["Zablokowane", "180.00 USD"], ["Dostępne", "1 060.00 USD"]]
+    .forEach(([k, v]) => {
+      const card = el("div", "panel");
+      append(card, microLabel(k), sample(v));
+      balances.append(card);
+    });
+  view.append(panel("Saldo agentów", balances, { index: "01" }));
+
+  const wallets = el("div");
+  [["michael-angelo", "0x7a…41c9", "820.00 USD"], ["minion-ephemeral", "0x1f…9de2", "220.00 USD"],
+   ["genkit-lab", "0xbc…7708", "200.00 USD"]].forEach(([owner, addr, bal]) => {
+    const row = el("div", "compact-row");
+    append(row, el("span", "row-icon", "$"), el("div", "row-copy", null), sample(bal));
+    append(row.children[1], el("strong", null, owner), el("small", "mono", addr));
+    wallets.append(row);
+  });
+  view.append(panel("Portfele", wallets, { index: "02" }));
+
+  const funding = el("div", "mission-actions");
+  append(funding, dead("Zasil przez MoonPay", "primary-button"), dead("Wypłać"), dead("Ustaw limit"));
+  view.append(panel("Funding", funding, { index: "03", subtitle: "On-ramp fiat → saldo agenta" }));
+
+  const tx = simpleTable(
+    ["Czas", "Agent", "Typ", "Kwota", "Status"],
+    [
+      ["2026-08-03 09:12", "michael-angelo", "FUNDING", sample("+500.00 USD"), statusLabel("PASS")],
+      ["2026-08-03 10:41", "michael-angelo", "PŁATNOŚĆ", sample("-42.10 USD"), statusLabel("PASS")],
+      ["2026-08-03 11:05", "minion-ephemeral", "PŁATNOŚĆ", sample("-180.00 USD"), statusLabel("AWAITING_HUMAN_APPROVAL")],
+    ], "Historia transakcji (przykład)");
+  const scroller = el("div", "scroller");
+  scroller.append(tx);
+  view.append(panel("Transakcje", scroller, { index: "04" }));
+
+  const limits = el("div");
+  append(limits,
+    dataField("Limit dzienny / agent", "250.00 USD"),
+    dataField("Limit pojedynczej płatności", "100.00 USD"),
+    dataField("Próg wymagający OSA", "50.00 USD"),
+    dataField("Klasa uprawnień ruchu środków", "RED"),
+    el("p", "muted-copy", "Wartości poglądowe. Ruch środków pozostaje RED i wymaga jawnej zgody OSA."));
+  view.append(panel("Budżety i limity", limits, { index: "05" }));
+
+  const approval = el("div");
+  append(approval,
+    microLabel("PŁATNOŚĆ OCZEKUJĄCA"),
+    dataField("Odbiorca", "vendor-api.example"),
+    dataField("Kwota", "180.00 USD"),
+    dataField("Zlecający agent", "minion-ephemeral"),
+    dataField("Wymagane", "APPROVAL OSA (RED)"),
+    el("div", "mission-actions", null));
+  append(approval.lastChild, dead("Zatwierdź płatność", "approval-button"), dead("Odrzuć", "danger-button"));
+  view.append(panel("Approval płatności", approval, { index: "06" }));
+
+  const integ = el("div");
+  append(integ,
+    dataField("Provider MoonPay", "NIEPODŁĄCZONY"),
+    dataField("Klucz API", "BRAK"),
+    dataField("Webhook", "BRAK"),
+    dataField("Stan integracji", "BACKEND NOT IMPLEMENTED"),
+    el("p", "muted-copy", "Blokada: config/tools.yaml → payments enabled:false; validate-godlayer.sh:91."));
+  view.append(panel("Status integracji", integ, { index: "07" }));
+  return view;
+}
+
+function renderMailboxDesign() {
+  const view = el("div", "view");
+  view.append(pageIntro("DESIGN PREVIEW · EKRAN DOCELOWY", "Skrzynka mailowa agentów",
+    "Projekt docelowej skrzynki. Backend nie istnieje.",
+    statusLabel("DESIGN PREVIEW — BACKEND NOT IMPLEMENTED")));
+  view.append(designBanner());
+
+  const layout = el("div", "michael-layout");
+
+  const inbox = el("div", "conversation-list");
+  append(inbox, microLabel("INBOX · PRZYKŁAD"));
+  [["Vendor API", "Faktura 08/2026", "NIEPRZECZYTANA"],
+   ["prospect@example", "Re: audyt infrastruktury", "PRZECZYTANA"],
+   ["noreply@ci", "Build zielony", "PRZECZYTANA"]].forEach(([from, subj, st]) => {
+    const card = el("div", "mission-list-card");
+    append(card, el("strong", null, from), el("small", null, subj), statusLabel(st));
+    inbox.append(card);
+  });
+  append(inbox, dead("Odśwież inbox"));
+
+  const reading = el("section", "chat-surface panel");
+  const head = el("header", "chat-header");
+  append(head, el("div", "chat-identity", null), el("div", "runtime-pills", null));
+  append(head.children[0], el("div", null, null));
+  append(head.children[0].firstChild, el("h2", null, "Faktura 08/2026"), el("p", null, "od: Vendor API · do: michael-angelo@hydra"));
+  append(head.children[1], statusLabel("NIEPRZECZYTANA"), statusLabel("PRZYKŁAD"));
+  const bodyBox = el("div", "chat-thread");
+  append(bodyBox,
+    el("p", "muted-copy", "Treść wiadomości renderowana jako tekst, bez zdalnych zasobów i bez wykonywania skryptów."),
+    microLabel("ZAŁĄCZNIKI"),
+    el("div", "artifact-list", null));
+  const att = bodyBox.lastChild;
+  [["faktura-08-2026.pdf", "184 kB"], ["zestawienie.csv", "12 kB"]].forEach(([n, s]) => {
+    const a = el("div", "artifact-card");
+    append(a, el("span", "artifact-icon", "▦"), el("strong", null, n), el("small", null, s), statusLabel("SKAN: PRZYKŁAD"));
+    att.append(a);
+  });
+  append(reading, head, bodyBox);
+
+  const side = el("aside", "michael-context");
+  const composer = el("div");
+  append(composer,
+    microLabel("DRAFT COMPOSER"),
+    dataField("Do", "prospect@example"),
+    dataField("Temat", "Re: audyt infrastruktury"),
+    el("p", "muted-copy", "Tworzenie draftu jest GREEN. Wysyłka jest RED i wymaga jawnej zgody OSA."),
+    el("div", "mission-actions", null));
+  append(composer.lastChild, dead("Zapisz draft", "primary-button"), dead("Dodaj załącznik"), dead("Wyślij (RED)", "danger-button"));
+  side.append(panel("Draft", composer, { index: "01" }));
+
+  const appr = el("div");
+  append(appr,
+    dataField("Draft", "Re: audyt infrastruktury"),
+    dataField("Odbiorca zewnętrzny", "TAK"),
+    dataField("Klasa", "RED · red.external_recipient"),
+    dataField("Wymagane", "APPROVAL OSA"),
+    el("div", "mission-actions", null));
+  append(appr.lastChild, dead("Zatwierdź wysyłkę", "approval-button"), dead("Odrzuć", "danger-button"));
+  side.append(panel("Approval przed wysyłką", appr, { index: "02" }));
+
+  const audit = el("div", "audit-list");
+  [["09:02", "DRAFT_CREATED", "michael-angelo"],
+   ["09:04", "ATTACHMENT_ADDED", "michael-angelo"],
+   ["09:07", "SEND_REQUESTED", "michael-angelo"],
+   ["09:11", "SEND_BLOCKED_PENDING_OSA", "hydra"]].forEach(([t, ev, who]) => {
+    const r = el("article", "audit-row audit-row-compact");
+    append(r, el("time", null, t), el("strong", null, ev), el("span", null, who), statusLabel("PRZYKŁAD"));
+    audit.append(r);
+  });
+  side.append(panel("Audit trail", audit, { index: "03" }));
+
+  append(layout, inbox, reading, side);
+  view.append(layout);
   return view;
 }
 
@@ -1721,7 +1913,9 @@ function renderRoute() {
     case "zgredek": return renderZgredekView();
     case "nvidia": return renderNvidia();
     case "wallet": return renderMissingFeature("wallet");
+    case "wallet-design": return renderWalletDesign();
     case "mailbox": return renderMissingFeature("mailbox");
+    case "mailbox-design": return renderMailboxDesign();
     case "genkit-lab": return renderSurface("genkit-lab", "Genkit Lab",
       "EKSPERYMENTY AI · PROTOTYPY", "Powierzchnia zarejestrowana w control plane. Brak runtime'u wykonawczego w tym repozytorium.");
     case "windows-rtx": return renderSurface("windows-rtx", "Windows / RTX",

@@ -415,3 +415,52 @@ label { color: #9b9aa0; font-size: 10px; letter-spacing: .04em; }
   .mission-detail-hero { flex-direction: column; }.mission-actions { justify-content: flex-start; }.mission-lower-grid { grid-template-columns: 1fr; }
   .event-card { grid-template-columns: 1fr; }.feature-split, .evidence-grid-view { grid-template-columns: 1fr; }.audit-row { grid-template-columns: 1fr; }
 }
+
+/* --- Mobile: mission table becomes cards -------------------------------
+   The shared .data-table sets min-width:580px, which is correct inside a
+   .scroller but not for the mission list, which is rendered straight into a
+   panel. Below 760px each row becomes a labelled card so Stan and Bieżący etap
+   are fully visible without horizontal scrolling. Tables that do live inside a
+   .scroller keep their explicit, controlled horizontal scroll. */
+@media (max-width: 760px) {
+  .mission-table { min-width: 0; }
+  .mission-table .data-head { display: none; }
+  .mission-table .data-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    min-height: 0;
+    padding: 10px 8px;
+    border-bottom: 1px solid #1d1917;
+  }
+  .mission-table .data-row > * {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .mission-table .data-row > *[data-label]::before {
+    content: attr(data-label);
+    color: #6e7079;
+    text-transform: uppercase;
+    font-size: 8px;
+    letter-spacing: .06em;
+  }
+  .mission-table .status-label { justify-self: start; }
+
+  /* The pipeline keeps its horizontal scroll, but narrower cards mean fewer
+     partially-cut nodes at the edge. */
+  .pipeline-track { gap: 12px; }
+  .pipeline-node { flex-basis: 132px; }
+
+  /* Nothing may push the page sideways. */
+  .view, .panel, .panel-body { min-width: 0; max-width: 100%; }
+  .mission-facts, .module-grid, .fleet-grid, .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The design-preview audit trail has four fields, not the six the operator
+   audit log uses, so it gets its own track sizing instead of leaving two empty
+   columns that push the row past the panel edge. */
+.audit-row-compact { grid-template-columns: 64px minmax(0, 1fr) auto auto; }
+@media (max-width: 760px) { .audit-row-compact { grid-template-columns: 1fr; } }
