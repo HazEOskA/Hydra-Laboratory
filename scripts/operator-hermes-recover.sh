@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# Smallest reversible repair for sandbox_container_stopped.
+#
+# Default is --dry-run: it prints the plan and changes nothing. Mutations happen
+# only with --execute, and only along the allowed ladder. Rebuild, destroy,
+# onboard, reinstall, provider/model/credential changes, state wipes, prune,
+# host reboot, UFW and Tailscale are refused outright — they need separate OSA
+# approval and are not reachable from this script at all.
+set -Eeuo pipefail
+umask 077
+
+HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/operator-lib.sh
+source "$HERE/operator-lib.sh"
+
+EXECUTE=0
+SKIP_AUDIT=0
+for arg in "$@"; do
+  case "$arg" in
+    --execute) EXECUTE=1 ;;
+    --dry-run) EXECUTE=0 ;;
+    --skip-audit) SKIP_AUDIT=1 ;;
+    -h|--help)
+      cat <<'USAGE'
+usage: operator-hermes-recover.sh [--dry-run|--execute] [--skip-audit]
+
+  --dry-run     (default) print the plan and the chosen repair; change nothing
+  --execute     perform the chosen repair
+  --skip-audit  reuse the most recent audit instead of running a fresh one
+
+Refused without separate OSA approval, in every mode:
+  sandbox destroy / rebuild / onboard, NemoClaw reinstall, provider or model
+  change, NVIDIA credential change, persistent state wipe, docker system prune,
+  host reboot, UFW change, Tailscale change.
+USAGE
+      exit 0 ;;
+    *) die "unknown argument: $arg" ;;
+  esac
+done
+
+require_host
+RUN_DIR="$(new_run_dir hermes-recover)"
+exec > >(tee -a "$RUN_DIR/recover-console.txt") 2>&1
+
+log "hermes recovery ($([[ $EXECUTE -eq 1 ]] && echo EXECUTE || echo DRY-RUN))"
+log "evidence: $RUN_DIR"
+
+# -- A. audit --------------------------------------------------------------
+if [[ $SKIP_AUDIT -eq 0 ]]; then
+  log "phase A: running read-only audit first"
+  "$HERE/operator-runtime-audit.sh" >"$RUN_DIR/audit.log" 2>&1 \
+    || die "audit failed; refusing to continue (see $RUN_DIR/audit.log)"
+else
+  log "phase A: skipped by request"
+fi
+
+# -- B. identify the exact container --------------------------------------
+log "phase B: identifying the sandbox container"
+CID="$(sandbox_container_id || true)"
+[[ -n "${CID:-}" ]] || die "no container matching sandbox '$SANDBOX'; cannot proceed (status=BLOCKED)"
+printf '  container=%s\n' "$CID"
+
+read -r STATUS EXITCODE OOM ERRMSG FINISHED RESTARTS < <(
+  docker inspect -f '{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}} {{if .State.Error}}{{.State.Error}}{{else}}none{{end}} {{.State.FinishedAt}} {{.RestartCount}}' "$CID"
+)
+
+# -- C. root cause ---------------------------------------------------------
+log "phase C: root cause"
+printf '  BEFORE  status=%s exit=%s oomKilled=%s restarts=%s finishedAt=%s\n' \
+  "$STATUS" "$EXITCODE" "$OOM" "$RESTARTS" "$FINISHED"
+printf '  BEFORE  error=%s\n' "$ERRMSG"
+{
+  printf 'container=%s\nstatus=%s\nexit_code=%s\noom_killed=%s\nrestart_count=%s\nfinished_at=%s\nerror=%s\n' \
+    "$CID" "$STATUS" "$EXITCODE" "$OOM" "$RESTARTS" "$FINISHED" "$ERRMSG"
+} | redact >"$RUN_DIR/root-cause.txt"
+
+if [[ "$OOM" == "true" ]]; then
+  printf '  NOTE    OOMKilled=true — starting the container again without addressing memory\n'
+  printf '          will most likely reproduce the crash. Capture this for OSA.\n'
+fi
+
+# -- D. backup -------------------------------------------------------------
+log "phase D: backup (metadata only, no credentials)"
+BACKUP="$RUN_DIR/backup"; mkdir -p "$BACKUP"
+docker inspect "$CID" 2>/dev/null | redact >"$BACKUP/container-inspect.json" || true
+nemoclaw list --json 2>/dev/null | redact >"$BACKUP/nemoclaw-list.json" || true
+nemoclaw inference get --json 2>/dev/null | redact >"$BACKUP/inference-route.json" || true
+nemohermes "$SANDBOX" status --json 2>/dev/null | redact >"$BACKUP/sandbox-status.json" || true
+for unit in nemoclaw-hermes-recover nemoclaw-hermes-watchdog nemoclaw-model-router \
+            nemoclaw-openshell-gateway hydra-direct hydra-hermes-worker; do
+  systemctl cat "$unit" 2>/dev/null | redact >"$BACKUP/unit-$unit.txt" || true
+done
+printf '  backup=%s\n' "$BACKUP"
+
+# -- E. smallest repair ----------------------------------------------------
+log "phase E: choosing the smallest reversible repair"
+
+verify_phase() {
+  nemohermes "$SANDBOX" status --json 2>/dev/null \
+    | grep -oE '"phase"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*"([^"]+)"$/\1/'
+}
+
+PHASE_BEFORE="$(verify_phase || true)"
+printf '  BEFORE  sandbox phase=%s\n' "${PHASE_BEFORE:-UNKNOWN}"
+
+REPAIR="none"
+if [[ "$STATUS" == "exited" || "$STATUS" == "created" ]]; then
+  REPAIR="docker-start"
+  act "start the existing stopped container $CID (no config change)" \
+    docker start "$CID"
+elif [[ "$STATUS" == "running" ]]; then
+  printf '  NOTE    container already running; the failure is above the container layer\n'
+  REPAIR="none-container-running"
+else
+  printf '  NOTE    container status=%s is outside the start ladder\n' "$STATUS"
+fi
+
+# Ladder step 2: NemoClaw's own start/recover for this sandbox only.
+if [[ "$REPAIR" == "none-container-running" || "$STATUS" == "exited" ]]; then
+  if [[ $EXECUTE -eq 1 ]]; then
+    sleep 5
+    PHASE_MID="$(verify_phase || true)"
+    if [[ "${PHASE_MID,,}" != "ready" && "${PHASE_MID,,}" != "running" ]]; then
+      REPAIR="nemohermes-start"
+      act "ask NemoClaw to start this sandbox only" \
+        nemohermes "$SANDBOX" start
+    fi
+  else
+    printf '  ACTION  (dry-run) if still not Ready: nemohermes %s start\n' "$SANDBOX"
+  fi
+fi
+
+# Ladder step 4: the existing recovery script, restricted to its non-destructive
+# half. Phase 4 of recover-hermes.sh is a DESTRUCTIVE rebuild and is skipped by
+# --skip-rebuild; this script never calls it without that flag.
+printf '\n  Ladder step 4 (only if the above did not help), evidence + validation only:\n'
+printf '    scripts/recover-hermes.sh --skip-rebuild --execute\n'
+printf '    SKIPPED ACTIONS: phase 4 sandbox rebuild [DESTRUCTIVE], and every action\n'
+printf '                     it performs after a rebuild. Never run recover-hermes.sh\n'
+printf '                     without --skip-rebuild from this bundle.\n\n'
+
+# -- AFTER -----------------------------------------------------------------
+if [[ $EXECUTE -eq 1 ]]; then
+  sleep 5
+  PHASE_AFTER="$(verify_phase || true)"
+  STATUS_AFTER="$(docker inspect -f '{{.State.Status}}' "$CID" 2>/dev/null || echo unknown)"
+  printf '  AFTER   container status=%s sandbox phase=%s (repair=%s)\n' \
+    "$STATUS_AFTER" "${PHASE_AFTER:-UNKNOWN}" "$REPAIR"
+  {
+    printf 'repair=%s\nphase_before=%s\nphase_after=%s\nstatus_after=%s\n' \
+      "$REPAIR" "${PHASE_BEFORE:-UNKNOWN}" "${PHASE_AFTER:-UNKNOWN}" "$STATUS_AFTER"
+  } >"$RUN_DIR/repair-result.txt"
+
+  case "${PHASE_AFTER,,}" in
+    ready|running)
+      log "RESULT: sandbox reports ${PHASE_AFTER}. Run operator-runtime-verify.sh next."
+      ;;
+    *)
+      log "RESULT: BLOCKED — smallest repair did not reach Ready/Running."
+      printf '  Do NOT escalate to rebuild. Hand %s to OSA.\n' "$RUN_DIR"
+      exit 3
+      ;;
+  esac
+else
+  printf '  AFTER   (dry-run: nothing changed)\n'
+  log "dry-run complete. Re-run with --execute when OSA accepts the plan."
+fi
