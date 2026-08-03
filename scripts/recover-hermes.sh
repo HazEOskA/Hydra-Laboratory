@@ -33,6 +33,14 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 run_dir="$STATE_DIR/recovery/$stamp"
 attempts_file="$STATE_DIR/recovery/rebuild-attempts.jsonl"
 
+# Shared operator guards: nemoclaw_config_dir() and classify_key_probe().
+# shellcheck source=scripts/operator-lib.sh
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/operator-lib.sh"
+
+# Resolved once. Empty means unresolved, which is reported as UNKNOWN rather
+# than being silently treated as "absent".
+NEMOCLAW_DIR="$(nemoclaw_config_dir 2>/dev/null || true)"
+
 execute=0
 hypothesis=""
 skip_rebuild=0
@@ -144,7 +152,7 @@ capture "logs-pre-rebuild.txt"   nemohermes "$SANDBOX" logs
 capture "metadata-pre-rebuild.txt" nemoclaw list --json
 capture "metadata-pre-rebuild.txt" nemoclaw inference get --json
 capture "ports-pre-rebuild.txt" ss -tulpn
-cp -a "$HOME/.nemoclaw/sandboxes.json" "$run_dir/sandboxes.json" 2>/dev/null || true
+cp -a "$NEMOCLAW_DIR/sandboxes.json" "$run_dir/sandboxes.json" 2>/dev/null || true
 
 if [[ -s "$run_dir/doctor-pre-rebuild.txt" ]]; then
   ok "pre-rebuild doctor output preserved"
@@ -295,11 +303,14 @@ curl -fsS --max-time 10 "$API_URL" >"$run_dir/api-health.txt" 2>&1 \
 curl -fsS --max-time 10 "$DASHBOARD_URL" -o /dev/null 2>/dev/null \
   && ok "dashboard responds on 18789" || info "dashboard did not respond on 18789"
 
-if [[ -e "$HOME/.nemoclaw/hermes-tool-gateway-broker.pid" ]] \
-  && kill -0 "$(cat "$HOME/.nemoclaw/hermes-tool-gateway-broker.pid" 2>/dev/null)" 2>/dev/null; then
+broker_pid_file="$NEMOCLAW_DIR/hermes-tool-gateway-broker.pid"
+if [[ -z "$NEMOCLAW_DIR" ]]; then
+  bad "nemoclaw config directory unresolved; broker state UNKNOWN (not 'not running')"
+elif [[ -e "$broker_pid_file" ]] \
+  && kill -0 "$(cat "$broker_pid_file" 2>/dev/null)" 2>/dev/null; then
   ok "Hermes tool-gateway broker is running"
 else
-  bad "Hermes tool-gateway broker is not running"
+  bad "Hermes tool-gateway broker is not running ($broker_pid_file)"
 fi
 
 # =========================================================================
@@ -332,14 +343,25 @@ else
 fi
 
 # THE invariant. A visible provider credential fails the run outright.
+#
+# stdout and stderr are kept apart on purpose. Merging them and substring-
+# matching would let a gateway refusal whose text happens to contain the word
+# ABSENT — GATEWAY_UNSAFE_CONFIG_PATH among them — be read as the safe branch.
+# classify_key_probe accepts only an exact ABSENT or PRESENT; everything else is
+# UNKNOWN and stops the run.
 # shellcheck disable=SC2016
-key_probe="$(nemohermes "$SANDBOX" exec --no-stdin -- sh -lc \
-  'if [ -z "${NVIDIA_INFERENCE_API_KEY:-}" ]; then echo ABSENT; else echo PRESENT; fi' 2>&1 || printf 'UNREADABLE')"
-printf '%s\n' "$key_probe" >"$run_dir/secret-isolation.txt"
+key_probe_raw="$(nemohermes "$SANDBOX" exec --no-stdin -- sh -lc \
+  'if [ -z "${NVIDIA_INFERENCE_API_KEY:-}" ]; then echo ABSENT; else echo PRESENT; fi' \
+  2>"$run_dir/secret-isolation.stderr" || true)"
+key_probe="$(classify_key_probe "$key_probe_raw")"
+{
+  printf 'verdict=%s\n' "$key_probe"
+  printf 'stdout_bytes=%s\n' "${#key_probe_raw}"
+} >"$run_dir/secret-isolation.txt"
 
-if grep -q 'ABSENT' <<<"$key_probe"; then
+if [[ "$key_probe" == "ABSENT" ]]; then
   ok "NVIDIA_INFERENCE_API_KEY is absent inside the sandbox"
-elif grep -q 'PRESENT' <<<"$key_probe"; then
+elif [[ "$key_probe" == "PRESENT" ]]; then
   bad "SECURITY FAILURE: NVIDIA_INFERENCE_API_KEY is present inside the sandbox"
   log "stopping the runtime per OSA Decision 1; Hermes is NOT healthy"
   nemoclaw "$SANDBOX" stop >>"$run_dir/secret-isolation.txt" 2>&1 || \
@@ -355,7 +377,22 @@ elif grep -q 'PRESENT' <<<"$key_probe"; then
   printf '%s\n' "${checklist[@]}" >"$run_dir/checklist.txt"
   exit 7
 else
-  bad "could not determine whether the provider key is visible in-sandbox"
+  # UNKNOWN. The boundary was not demonstrated, which is not the same as a
+  # breach and not the same as safety. The run stops here rather than
+  # continuing on an unverified invariant.
+  bad "secret-boundary check did not complete cleanly; verdict UNKNOWN"
+  {
+    printf '# SECRET BOUNDARY UNVERIFIED\n\n'
+    printf -- '- verdict: UNKNOWN (probe returned neither an exact ABSENT nor PRESENT)\n'
+    printf -- '- this is NOT proof of exposure and NOT proof of isolation\n'
+    printf -- '- common cause: the sandbox container is stopped, so exec cannot run\n'
+    printf -- '- common cause: the gateway refused the config path (GATEWAY_UNSAFE_CONFIG_PATH)\n'
+    printf -- '- see secret-isolation.stderr for the refusal text\n'
+    printf -- '- required: bring the sandbox up, then re-run; do not mark Hermes healthy\n'
+  } >"$run_dir/SECRET-BOUNDARY-UNVERIFIED.md"
+  printf '\nRECOVERY: stopped — credential boundary UNKNOWN. Evidence: %s\n' "$run_dir"
+  printf '%s\n' "${checklist[@]}" >"$run_dir/checklist.txt"
+  exit 8
 fi
 
 # =========================================================================
