@@ -91,10 +91,20 @@ class MissionManifest:
     execution_contract: dict[str, Any]
     nodes: tuple[PipelineNodeSpec, ...]
     failure_mode: str = "none"
+    base_branch: str = "main"
+    acceptance_criteria: tuple[str, ...] = ()
+    required_tests: tuple[str, ...] = ()
+    budget_limit: float = 0.0
+    budget_scope: str = "global"
+    requested_worker: str = "AUTO"
+    timeout_seconds: int = 900
+    blueprint: str = "standard-coding-mission"
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["risk_level"] = str(self.risk_level)
+        payload["acceptance_criteria"] = list(self.acceptance_criteria)
+        payload["required_tests"] = list(self.required_tests)
         payload["nodes"] = [
             {
                 "node_id": node.node_id,

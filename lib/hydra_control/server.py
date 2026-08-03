@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlparse
 from hermes.config import state_dir as hermes_state_dir
 
 from .models import ControlPlaneError, NotFoundError, ValidationError
+from .scheduler import MissionScheduler
 from .service import MissionService
 
 
@@ -31,9 +32,11 @@ class HydraHTTPServer(ThreadingHTTPServer):
         server_address: tuple[str, int],
         service: MissionService,
         web_root: Path,
+        scheduler: Any = None,
     ) -> None:
         self.service = service
         self.web_root = web_root.resolve(strict=True)
+        self.scheduler = scheduler
         super().__init__(server_address, HydraRequestHandler)
 
 
@@ -57,6 +60,33 @@ class HydraRequestHandler(BaseHTTPRequestHandler):
             if path == "/api/backends":
                 self._json(HTTPStatus.OK, {"backends": self.server.service.backends()})
                 return
+            simple_getters = {
+                "/api/health/full": self.server.service.health,
+                "/api/projects": lambda: {"projects": self.server.service.store.projects()},
+                "/api/repositories": lambda: {
+                    "repositories": self.server.service.store.repositories()
+                },
+                "/api/workers": lambda: {"workers": self.server.service.registry_snapshot()["workers"]},
+                "/api/models": lambda: {"models": self.server.service.store.models()},
+                "/api/budgets": lambda: {
+                    "budgets": self.server.service.store.budgets(),
+                    "entries": self.server.service.store.budget_entries(),
+                },
+                "/api/queue": lambda: {
+                    "queue": self.server.service.store.queue(),
+                    "scheduler": self.server.scheduler.status()
+                    if self.server.scheduler
+                    else {"running": False, "reason": "scheduler not started"},
+                },
+                "/api/sandboxes": lambda: {"sandboxes": self.server.service.sandboxes()},
+                "/api/registry": self.server.service.registry_snapshot,
+                "/api/approvals": lambda: {
+                    "approvals": self.server.service.pending_approvals()
+                },
+            }
+            if path in simple_getters:
+                self._json(HTTPStatus.OK, simple_getters[path]())
+                return
             if path == "/api/missions":
                 self._json(HTTPStatus.OK, {"missions": self.server.service.list_missions()})
                 return
@@ -69,13 +99,18 @@ class HydraRequestHandler(BaseHTTPRequestHandler):
                 ("logs", self.server.service.logs),
                 ("artifacts", self.server.service.artifacts),
                 ("evidence", self.server.service.evidence),
+                ("diff", self.server.service.mission_diff),
+                ("rollback", self.server.service.rollback_manifest),
+                ("pull-request", self.server.service.pull_request),
             ):
                 match = re.fullmatch(rf"/api/missions/{MISSION_ID}/{suffix}", path)
                 if match:
                     value = getter(match["mission"])
                     self._json(
                         HTTPStatus.OK,
-                        value if suffix == "evidence" else {suffix: value},
+                        {suffix: value}
+                        if suffix in ("events", "logs", "artifacts")
+                        else value,
                     )
                     return
             match = re.fullmatch(r"/api/artifacts/(?P<artifact>[0-9a-f-]{36})/content", path)
@@ -231,11 +266,12 @@ def create_server(
     host: str = "127.0.0.1",
     port: int = 8787,
     web_root: str | Path | None = None,
+    scheduler: Any = None,
 ) -> HydraHTTPServer:
     if host not in {"127.0.0.1", "::1", "localhost"}:
         raise ValidationError("the initial control plane may bind only to loopback")
     root = Path(web_root) if web_root else Path(__file__).resolve().parents[2] / "web"
-    return HydraHTTPServer((host, port), service, root)
+    return HydraHTTPServer((host, port), service, root, scheduler)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -243,23 +279,35 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--state-dir", default=str(hermes_state_dir()))
+    parser.add_argument(
+        "--no-scheduler",
+        action="store_true",
+        help="serve the API without the durable-queue pump (manual start only)",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     service = MissionService.local(args.state_dir)
+    service.seed_registries()
     recovered = service.recover(asynchronous=True)
-    server = create_server(service, args.host, args.port)
+    scheduler = MissionScheduler(service)
+    requeued = scheduler.recover()
+    if not args.no_scheduler:
+        scheduler.start()
+    server = create_server(service, args.host, args.port, scheduler=scheduler)
     print(
-        f"Hydra Minion control plane listening on http://{args.host}:{server.server_port} "
-        f"state={Path(args.state_dir).resolve()} recovered={len(recovered)}"
+        f"Hydra control plane listening on http://{args.host}:{server.server_port} "
+        f"state={Path(args.state_dir).resolve()} recovered={len(recovered)} "
+        f"requeued={len(requeued)} scheduler={'on' if scheduler.running else 'off'}"
     )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        scheduler.stop()
         server.server_close()
         service.store.close()
     return 0

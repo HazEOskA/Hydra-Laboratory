@@ -26,6 +26,14 @@ PIPELINE = (
 )
 
 
+RISK_ORDER = {
+    RiskLevel.LOW: 0,
+    RiskLevel.MEDIUM: 1,
+    RiskLevel.HIGH: 2,
+    RiskLevel.CRITICAL: 3,
+}
+
+
 class MissionCompiler(Protocol):
     """Production boundary for Michael Angelo mission compilation."""
 
@@ -40,6 +48,15 @@ class MissionCompiler(Protocol):
         repository: str,
         backend: str,
         failure_mode: str,
+        base_branch: str = "main",
+        acceptance_criteria: tuple[str, ...] = (),
+        required_tests: tuple[str, ...] = (),
+        budget_limit: float = 0.0,
+        budget_scope: str = "global",
+        requested_worker: str = "AUTO",
+        timeout_seconds: int = 900,
+        blueprint: str = "standard-coding-mission",
+        risk_override: RiskLevel | None = None,
     ) -> MissionManifest: ...
 
 
@@ -71,6 +88,15 @@ class DeterministicMissionCompiler:
         repository: str,
         backend: str,
         failure_mode: str,
+        base_branch: str = "main",
+        acceptance_criteria: tuple[str, ...] = (),
+        required_tests: tuple[str, ...] = (),
+        budget_limit: float = 0.0,
+        budget_scope: str = "global",
+        requested_worker: str = "AUTO",
+        timeout_seconds: int = 900,
+        blueprint: str = "standard-coding-mission",
+        risk_override: RiskLevel | None = None,
     ) -> MissionManifest:
         nodes: list[PipelineNodeSpec] = []
         previous = ""
@@ -92,7 +118,13 @@ class DeterministicMissionCompiler:
             request=request,
             repository=repository,
             branch=f"hydra/mission-{mission_id[:8]}",
-            risk_level=self._risk(request),
+            # An operator may raise the risk level but never lower what the
+            # request text itself implies.
+            risk_level=max(
+                self._risk(request),
+                risk_override or RiskLevel.LOW,
+                key=lambda level: RISK_ORDER[level],
+            ),
             execution_backend=backend,
             compiler=self.compiler_id,
             validation_requirements=(
@@ -102,6 +134,7 @@ class DeterministicMissionCompiler:
                 "runtime-verification",
                 "independent-review",
                 "apr-commit-binding",
+                "rollback-plan",
             ),
             execution_contract={
                 "repositoryPolicy": "built-in-fixture-only",
@@ -113,4 +146,12 @@ class DeterministicMissionCompiler:
             },
             nodes=tuple(nodes),
             failure_mode=failure_mode,
+            base_branch=base_branch,
+            acceptance_criteria=tuple(acceptance_criteria),
+            required_tests=tuple(required_tests),
+            budget_limit=budget_limit,
+            budget_scope=budget_scope,
+            requested_worker=requested_worker,
+            timeout_seconds=timeout_seconds,
+            blueprint=blueprint,
         )

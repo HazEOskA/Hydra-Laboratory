@@ -592,6 +592,7 @@ class DeterministicLocalBackend:
                 ("git", "diff", "--name-only", base, result),
             ),
             self._run(session, input.node_id, ("git", "diff", "--stat", base, result)),
+            self._run(session, input.node_id, ("git", "diff", base, result)),
             self._run(session, input.node_id, ("git", "rev-parse", "HEAD")),
         ]
         success = all(command.exit_code == 0 for command in commands)
@@ -607,6 +608,8 @@ class DeterministicLocalBackend:
                     value for value in commands[0].stdout.splitlines() if value.strip()
                 ],
                 "diffSummary": commands[1].stdout.strip(),
+                # The unified diff is redacted like every other captured output.
+                "diff": redact(commands[2].stdout)[:20000],
                 "currentCommit": current,
                 "checks": {"build": "NOT_REQUIRED"},
             },
