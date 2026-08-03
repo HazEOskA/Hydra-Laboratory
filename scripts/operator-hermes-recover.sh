@@ -124,6 +124,28 @@ elif [[ "$STATUS" == "restarting" ]]; then
   tail -30 "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null | sed 's/^/  | /' \
     || printf '  | (no logs captured)\n'
   printf '  ------------------------------------------------------\n\n'
+
+  # Most of a crashing sandbox's log is OPA symlink noise. The lines that decide
+  # what to do are few and named, so classify them instead of leaving the
+  # operator to read past the noise.
+  if grep -q 'HERMES_MCP_CONFIG_DRIFT' "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null; then
+    REPAIR="none-config-drift"
+    printf '  ROOT CAUSE  HERMES_MCP_CONFIG_DRIFT\n'
+    printf '              The sandbox is not crashing: it is refusing to start. Hermes\n'
+    printf '              hashes the MCP/gateway intent, compares it against the persisted\n'
+    printf '              state, and terminates with exit 1 when they disagree. Docker then\n'
+    printf '              restarts it, which is the loop you are seeing.\n'
+    printf '              Starting it again cannot help — the refusal is deterministic.\n'
+    printf '              Vendor remedy: rebuild the sandbox from its NemoClaw registry\n'
+    printf '              state. That is DESTRUCTIVE and needs explicit OSA approval; this\n'
+    printf '              bundle will not do it for you.\n\n'
+    grep -n '\[SECURITY\]' "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null \
+      | tail -5 | sed 's/^/  | /'
+    printf '\n'
+  elif grep -q '\[SECURITY\]' "$RUN_DIR/crash-logs.redacted.txt" 2>/dev/null; then
+    printf '  ROOT CAUSE  a [SECURITY] check terminated the sandbox; see the lines above\n\n'
+  fi
+
   printf '  Restart policy (a loop keeps the state moving while you read it):\n'
   docker inspect -f '  | RestartPolicy={{.HostConfig.RestartPolicy.Name}} MaxRetry={{.HostConfig.RestartPolicy.MaximumRetryCount}}' "$CID" 2>/dev/null || true
   printf '\n'
