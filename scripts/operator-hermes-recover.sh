@@ -15,11 +15,13 @@ source "$HERE/operator-lib.sh"
 
 EXECUTE=0
 SKIP_AUDIT=0
+REBUILD_APPROVED_BY=""
 for arg in "$@"; do
   case "$arg" in
     --execute) EXECUTE=1 ;;
     --dry-run) EXECUTE=0 ;;
     --skip-audit) SKIP_AUDIT=1 ;;
+    --rebuild-approved-by=*) REBUILD_APPROVED_BY="${arg#*=}" ;;
     -h|--help)
       cat <<'USAGE'
 usage: operator-hermes-recover.sh [--dry-run|--execute] [--skip-audit]
@@ -149,6 +151,46 @@ elif [[ "$STATUS" == "restarting" ]]; then
   printf '  Restart policy (a loop keeps the state moving while you read it):\n'
   docker inspect -f '  | RestartPolicy={{.HostConfig.RestartPolicy.Name}} MaxRetry={{.HostConfig.RestartPolicy.MaximumRetryCount}}' "$CID" 2>/dev/null || true
   printf '\n'
+
+  # -- OSA-approved rebuild -------------------------------------------------
+  # The one destructive path in this bundle. It is reachable only when all four
+  # hold: the drift marker was actually found, --execute was given, an approver
+  # was named, and this is the config-drift branch. Any other failure mode still
+  # exits BLOCKED — this flag is not a general "rebuild whenever" escape hatch.
+  if [[ "$REPAIR" == "none-config-drift" && -n "$REBUILD_APPROVED_BY" && $EXECUTE -eq 1 ]]; then
+    printf '  OSA APPROVAL recorded: rebuild authorised by "%s"\n' "$REBUILD_APPROVED_BY"
+    {
+      printf 'approved_by=%s\napproved_at=%s\nroot_cause=HERMES_MCP_CONFIG_DRIFT\ncontainer=%s\nrestarts_before=%s\n' \
+        "$REBUILD_APPROVED_BY" "$(utc)" "$CID" "$RESTARTS"
+    } >"$RUN_DIR/REBUILD-APPROVAL.txt"
+
+    # Pre-rebuild capture. After the rebuild this evidence cannot be recreated.
+    nemohermes "$SANDBOX" doctor --json 2>&1 | redact >"$RUN_DIR/pre-rebuild-doctor.json" || true
+    nemoclaw list --json 2>&1 | redact >"$RUN_DIR/pre-rebuild-nemoclaw-list.json" || true
+    docker inspect "$CID" 2>&1 | redact >"$RUN_DIR/pre-rebuild-inspect.json" || true
+
+    # Stop the loop first: rebuilding while docker keeps restarting the old
+    # container means racing a moving target.
+    printf '  BEFORE  restarts=%s status=%s\n' "$RESTARTS" "$STATUS"
+    act "stop the sandbox so the restart loop ends" \
+      nemoclaw "$SANDBOX" stop
+    sleep 5
+
+    act "rebuild the sandbox from its NemoClaw registry state" \
+      nemohermes "$SANDBOX" rebuild --yes
+    REPAIR="osa-approved-rebuild"
+
+    # Rebuild returns before the sandbox settles; wait rather than judging early.
+    for _ in $(seq 1 30); do
+      case "$(verify_phase | tr '[:upper:]' '[:lower:]')" in
+        ready|running) break ;;
+      esac
+      sleep 10
+    done
+  elif [[ "$REPAIR" == "none-config-drift" && -z "$REBUILD_APPROVED_BY" ]]; then
+    printf '  HOLD    rebuild is the vendor remedy for this cause but needs approval.\n'
+    printf '          Re-run with --execute --rebuild-approved-by=OSA to authorise it.\n\n'
+  fi
 else
   printf '  NOTE    container status=%s is outside the start ladder\n' "$STATUS"
 fi
