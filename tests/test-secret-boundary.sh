@@ -66,21 +66,33 @@ mkdir -p "$TMP/w/.nemoclaw" && chmod 707 "$TMP/w/.nemoclaw"
 got="$(NEMOCLAW_HOME="$TMP/w/.nemoclaw" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
 check "world-writable is refused"            REFUSED "$got"
 
-got="$(NEMOCLAW_HOME="$TMP/does-not-exist" HOME="$TMP/none" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
-check "missing directory is refused"         REFUSED "$got"
+# Every path case below pins the probe order explicitly. Without that the
+# outcome depends on whether /home/hydra/.nemoclaw exists on the machine running
+# the tests — which made this suite pass in a container and fail on the runtime
+# host for no real defect.
+got="$(NEMOCLAW_CONFIG_CANDIDATES="$TMP/does-not-exist $TMP/also-missing" \
+       nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
+check "no candidate exists is refused"       REFUSED "$got"
 
-# $HOME must not win over the canonical operator path when both exist: a wrong
-# $HOME under systemd or sudo previously produced a silent miss.
-canon="$TMP/home/$REQUIRED_USER/.nemoclaw"
-mkdir -p "$canon" && chmod 700 "$canon"
-decoy="$TMP/decoy/.nemoclaw"
-mkdir -p "$decoy" && chmod 700 "$decoy"
-got="$(HOME="$TMP/decoy" REQUIRED_USER="$REQUIRED_USER" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
-if [[ "$got" == "$decoy" ]]; then
-  printf 'PASS  %-58s %s\n' "\$HOME used only when canonical path is absent" "$got"; pass=$((pass + 1))
-else
-  printf 'PASS  %-58s %s\n' "canonical path preferred over \$HOME" "$got"; pass=$((pass + 1))
-fi
+# Ordering: the canonical operator path must win over $HOME when both exist. A
+# wrong $HOME under systemd or sudo previously produced a silent miss.
+canon="$TMP/canonical/.nemoclaw"; mkdir -p "$canon" && chmod 700 "$canon"
+decoy="$TMP/decoy/.nemoclaw";     mkdir -p "$decoy" && chmod 700 "$decoy"
+got="$(NEMOCLAW_CONFIG_CANDIDATES="$canon $decoy" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
+check "canonical path wins over \$HOME"      "$canon" "$got"
+
+# Falling through: an absent earlier candidate must not stop the search.
+got="$(NEMOCLAW_CONFIG_CANDIDATES="$TMP/missing $canon" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
+check "absent candidate falls through"       "$canon" "$got"
+
+# An unsafe candidate is refused outright rather than skipped: silently moving on
+# would hand the gateway a directory it has already rejected.
+got="$(NEMOCLAW_CONFIG_CANDIDATES="$TMP/g/.nemoclaw $canon" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
+check "unsafe candidate refuses, not skips"  REFUSED "$got"
+
+# The default probe order is still the operator one when nothing is injected.
+got="$(NEMOCLAW_CONFIG_CANDIDATES= NEMOCLAW_HOME="$canon" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
+check "NEMOCLAW_HOME honoured by default"    "$canon" "$got"
 
 echo
 echo "-- the boundary is not weakened: no path writes the key into the sandbox --"

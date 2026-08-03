@@ -90,9 +90,16 @@ new_run_dir() {
 # Prints the path on success; prints nothing and returns non-zero otherwise.
 nemoclaw_config_dir() {
   local candidates=()
-  [[ -n "${NEMOCLAW_HOME:-}" ]] && candidates+=("$NEMOCLAW_HOME")
-  candidates+=("/home/$REQUIRED_USER/.nemoclaw")
-  [[ -n "${HOME:-}" ]] && candidates+=("$HOME/.nemoclaw")
+  if [[ -n "${NEMOCLAW_CONFIG_CANDIDATES:-}" ]]; then
+    # Explicit probe order. Set by the regression tests so the outcome does not
+    # depend on whether /home/hydra/.nemoclaw happens to exist on the machine
+    # running them.
+    read -r -a candidates <<<"$NEMOCLAW_CONFIG_CANDIDATES"
+  else
+    [[ -n "${NEMOCLAW_HOME:-}" ]] && candidates+=("$NEMOCLAW_HOME")
+    candidates+=("/home/$REQUIRED_USER/.nemoclaw")
+    [[ -n "${HOME:-}" ]] && candidates+=("$HOME/.nemoclaw")
+  fi
 
   local dir perms
   for dir in "${candidates[@]}"; do
