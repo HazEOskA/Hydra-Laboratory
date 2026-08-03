@@ -113,6 +113,13 @@ class HydraRequestHandler(BaseHTTPRequestHandler):
                         else value,
                     )
                     return
+            match = re.fullmatch(rf"/api/context-packet/{MISSION_ID}", path)
+            if match:
+                self._json(
+                    HTTPStatus.OK,
+                    self.server.service.context_packet(match["mission"]),
+                )
+                return
             match = re.fullmatch(r"/api/artifacts/(?P<artifact>[0-9a-f-]{36})/content", path)
             if match:
                 data = self.server.service.artifact_bytes(match["artifact"])

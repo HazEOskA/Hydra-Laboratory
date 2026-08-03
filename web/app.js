@@ -213,14 +213,15 @@ function showError(error) {
 
 async function loadMissionDetails(missionId, force = false) {
   if (!force && state.details.has(missionId)) return state.details.get(missionId);
-  const [mission, events, logs, artifacts, evidence] = await Promise.all([
+  const [mission, events, logs, artifacts, evidence, context] = await Promise.all([
     api(`/api/missions/${missionId}`),
     api(`/api/missions/${missionId}/events`).then((r) => r.events || []).catch(() => []),
     api(`/api/missions/${missionId}/logs`).then((r) => r.logs || []).catch(() => []),
     api(`/api/missions/${missionId}/artifacts`).then((r) => r.artifacts || []).catch(() => []),
     api(`/api/missions/${missionId}/evidence`).catch(() => null),
+    api(`/api/context-packet/${missionId}`).catch(() => null),
   ]);
-  const detail = { mission, events, logs, artifacts, evidence };
+  const detail = { mission, events, logs, artifacts, evidence, context };
   state.details.set(missionId, detail);
   return detail;
 }
@@ -515,18 +516,33 @@ function renderMissionExecutionPanel(detail) {
 
 function renderZgredekCard() {
   const zg = state.fullHealth?.zgredek;
+  const ctx = state.selectedMissionId ? state.details.get(state.selectedMissionId)?.context : null;
+  const packet = ctx?.packet;
   const body = el("div", "zgredek-card");
   const hero = el("div", "zgredek-identity");
   append(hero, art("zgredek-observatory.webp", "Purpurowe oko obserwatorium — Zgredek Drift Guard", "zgredek-art"), el("div", null, null));
   append(hero.lastChild, microLabel("DRIFT GUARD · STRAŻNIK DECYZJI"), el("h3", null, "Zgredek"), statusLabel(zg?.connected ? "PODŁĄCZONY" : "ZGREDEK NIEPODŁĄCZONY"));
   append(body, hero,
-    dataField("Context packet", zg?.contextPacket || "UNKNOWN"),
-    dataField("Wykrywanie driftu", zg?.driftDetection || "UNKNOWN"),
-    dataField("Lock architektury", "MINION v0.1"),
-    dataField("Lock designu", "HYDRA UI v0.1"),
-    dataField("Ostatnia weryfikacja", "NIEDOSTĘPNA"),
-    el("p", "muted-copy", zg?.reason || "Analiza driftu nie jest fabrykowana. Zgredek dostarcza context packet i wykrywa drift — nie koduje."),
+    dataField("Adapter", zg?.adapter || "UNKNOWN"),
+    dataField("Context packet", ctx ? (ctx.available ? (ctx.valid ? "WAŻNY" : "NIEWAŻNY") : "BRAK") : (zg?.contextPacket || "UNKNOWN")),
+    dataField("Wykrywanie driftu", ctx?.drift?.status || zg?.driftDetection || "UNKNOWN"),
+    dataField("Schemat packetu", packet?.schemaVersion || "—"),
+    dataField("SHA-256 packetu", packet?.sha256 ? shortSha(packet.sha256) : "—"),
+    dataField("Architecture locks", packet ? String((packet.architectureLocks || []).length) : "—"),
+    dataField("Zatwierdzone decyzje", packet ? String((packet.acceptedDecisions || []).length) : "—"),
+    dataField("Ownership", packet?.ownership?.status || "UNKNOWN"),
   );
+  if (ctx?.invalidReasons?.length) {
+    const reasons = el("ul", "risk-list");
+    ctx.invalidReasons.forEach((r) => reasons.append(el("li", null, r)));
+    append(body, microLabel("POWODY ODMOWY", "danger-text"), reasons);
+  }
+  if (ctx?.drift?.findings?.length) {
+    const findings = el("ul", "risk-list");
+    ctx.drift.findings.forEach((f) => findings.append(el("li", null, `${f.kind}: ${f.path}`)));
+    append(body, microLabel("WYKRYTY DRIFT", "danger-text"), findings);
+  }
+  body.append(el("p", "muted-copy", zg?.reason || "Zgredek przygotowuje i zatwierdza kontekst oraz wykrywa drift. Nie koduje, nie uruchamia workera i nie wdraża."));
   return panel("Nadzór zgodności", body, { className: "zgredek-panel", index: "01" });
 }
 

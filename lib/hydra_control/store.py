@@ -276,6 +276,24 @@ CREATE INDEX IF NOT EXISTS control_queue_ready
 """
 
 
+# Schema v3 stores the Zgredek context packet that a mission was approved
+# against. Additive: no earlier table is touched.
+SCHEMA_V3 = """
+CREATE TABLE IF NOT EXISTS control_context_packets (
+    mission_id      TEXT PRIMARY KEY,
+    schema_version  TEXT NOT NULL,
+    adapter         TEXT NOT NULL,
+    packet_json     TEXT NOT NULL,
+    packet_sha256   TEXT NOT NULL,
+    repository      TEXT NOT NULL,
+    base_branch     TEXT NOT NULL,
+    approved_by     TEXT NOT NULL DEFAULT '',
+    approved_at     TEXT,
+    prepared_at     TEXT NOT NULL
+);
+"""
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace(
         "+00:00", "Z"
@@ -314,6 +332,11 @@ class ControlPlaneStore:
         self.conn.executescript(SCHEMA_V2)
         self.conn.execute(
             "INSERT OR IGNORE INTO control_schema_migrations(version, applied_at) VALUES (2, ?)",
+            (utc_now(),),
+        )
+        self.conn.executescript(SCHEMA_V3)
+        self.conn.execute(
+            "INSERT OR IGNORE INTO control_schema_migrations(version, applied_at) VALUES (3, ?)",
             (utc_now(),),
         )
         self.conn.commit()
@@ -1213,6 +1236,80 @@ class ControlPlaneStore:
                 "SELECT * FROM control_models ORDER BY role, model_id"
             ).fetchall()
         ]
+
+    # ------------------------------------------------------------------
+    # Zgredek context packets
+    # ------------------------------------------------------------------
+
+    def append_context_event(
+        self,
+        mission_id: str,
+        *,
+        event_type: str,
+        actor: str,
+        message: str,
+        node_id: str = "repository-fact-load",
+        verdict: str = "",
+    ) -> str:
+        """Record a Zgredek APR checkpoint in the append-only ledger.
+
+        Context events carry a verdict instead of a state change, so both state
+        columns hold the verdict. That keeps the hash chain over a single event
+        shape rather than introducing a second, weaker one.
+        """
+        with self._lock:
+            self.conn.execute("BEGIN IMMEDIATE")
+            try:
+                event_id = self._append_event_locked(
+                    mission_id=mission_id,
+                    node_id=node_id,
+                    event_type=event_type,
+                    previous_state=verdict or "CONTEXT",
+                    next_state=verdict or "CONTEXT",
+                    actor=actor,
+                    backend="zgredek",
+                    message=message[:500],
+                )
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                raise
+        return event_id
+
+    def save_context_packet(self, mission_id: str, packet: dict[str, Any]) -> None:
+        with self._lock:
+            self.conn.execute(
+                "INSERT INTO control_context_packets (mission_id, schema_version, adapter,"
+                " packet_json, packet_sha256, repository, base_branch, approved_by,"
+                " approved_at, prepared_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(mission_id) DO UPDATE SET schema_version=excluded.schema_version,"
+                " adapter=excluded.adapter, packet_json=excluded.packet_json,"
+                " packet_sha256=excluded.packet_sha256, repository=excluded.repository,"
+                " base_branch=excluded.base_branch, approved_by=excluded.approved_by,"
+                " approved_at=excluded.approved_at, prepared_at=excluded.prepared_at",
+                (
+                    mission_id,
+                    packet.get("schemaVersion", ""),
+                    packet.get("adapter", ""),
+                    _canonical_json(packet),
+                    packet.get("sha256", ""),
+                    packet.get("repository", ""),
+                    packet.get("baseBranch", ""),
+                    packet.get("approvedBy", ""),
+                    packet.get("approvedAt"),
+                    packet.get("preparedAt", ""),
+                ),
+            )
+            self.conn.commit()
+
+    def context_packet(self, mission_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT packet_json FROM control_context_packets WHERE mission_id = ?",
+            (mission_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return json.loads(row["packet_json"])
 
     # ------------------------------------------------------------------
     # Budgets

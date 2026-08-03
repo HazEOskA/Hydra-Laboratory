@@ -43,8 +43,8 @@ class StoreRegistryCase(unittest.TestCase):
         self.store.close()
         self._dir.cleanup()
 
-    def test_schema_v2_is_applied_additively(self) -> None:
-        self.assertEqual(self.store.schema_versions(), [1, 2])
+    def test_schema_migrations_are_applied_additively(self) -> None:
+        self.assertEqual(self.store.schema_versions(), [1, 2, 3])
 
     def test_project_and_repository_registry_roundtrip(self) -> None:
         self.store.upsert_project(key="ma", name="Michael Angelo", permission="GREEN")
@@ -247,11 +247,14 @@ class MissionIntakeCase(unittest.TestCase):
         self.assertIsNone(route["selected"])
         self.assertIn("claude-opus-4", route["candidates"])
 
-    def test_health_reports_zgredek_as_unknown(self) -> None:
+    def test_health_reports_the_local_zgredek_adapter(self) -> None:
         health = self.service.health()
-        self.assertFalse(health["zgredek"]["connected"])
-        self.assertEqual(health["zgredek"]["contextPacket"], "UNKNOWN")
-        self.assertEqual(health["schemaVersions"], [1, 2])
+        self.assertTrue(health["zgredek"]["connected"])
+        self.assertEqual(health["zgredek"]["contextPacket"], "ACTIVE")
+        self.assertEqual(health["zgredek"]["adapter"], "zgredek-local-contract-v0.1")
+        # The separate Zgredek product is still not claimed.
+        self.assertIn("UNKNOWN", health["zgredek"]["reason"])
+        self.assertEqual(health["schemaVersions"], [1, 2, 3])
 
 
 class SchedulerCase(unittest.TestCase):

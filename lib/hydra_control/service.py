@@ -30,6 +30,7 @@ from .models import (
     ValidationError,
 )
 from .store import ControlPlaneStore, utc_now
+from .zgredek import ContextAuthority, ContextPacket, DeterministicZgredek
 
 
 ALLOWED_CREATE_FIELDS = frozenset(
@@ -76,6 +77,10 @@ MODEL_PROVIDER_ENV = {
 # Compute-time billing rate for workers that spend no model tokens.
 COMPUTE_RATE_PER_SECOND = 0.001
 
+# The node Zgredek's context packet gates. Fact loading is the first step that
+# reads the repository, so it is the right place to require approved context.
+CONTEXT_GATED_NODE = "repository-fact-load"
+
 NODE_MISSION_STATES = {
     "mission-intake": MissionState.QUEUED,
     "repository-fact-load": MissionState.FACT_LOADING,
@@ -106,10 +111,14 @@ class MissionService:
         store: ControlPlaneStore,
         backend: ExecutionBackend,
         compiler: MissionCompiler | None = None,
+        zgredek: ContextAuthority | None = None,
     ) -> None:
         self.store = store
         self.backend = backend
         self.compiler = compiler or DeterministicMissionCompiler()
+        self.zgredek = zgredek or DeterministicZgredek(
+            Path(__file__).resolve().parents[2]
+        )
         self._locks: dict[str, threading.Lock] = {}
         self._threads: dict[str, threading.Thread] = {}
         self._guard = threading.RLock()
@@ -205,6 +214,28 @@ class MissionService:
             risk_override=risk_override,
         )
         mission = self.store.create_mission(manifest, actor)
+
+        # Zgredek prepares and approves the context before the mission may run.
+        # It does not execute anything; Hydra enforces the packet at dispatch.
+        packet = self.zgredek.prepare(
+            mission_id=mission_id,
+            repository=repository,
+            base_branch=base_branch,
+            now=utc_now(),
+        ).to_dict()
+        self.store.save_context_packet(mission_id, packet)
+        self.store.append_context_event(
+            mission_id,
+            event_type="CONTEXT_PACKET_PREPARED",
+            actor=self.zgredek.adapter_id,
+            verdict="PREPARED",
+            message=(
+                f"context packet {packet['sha256'][:12]} prepared and approved; "
+                f"{len(packet['architectureLocks'])} locks, "
+                f"{len(packet['acceptedDecisions'])} decisions"
+            ),
+        )
+
         self.store.enqueue(mission_id, priority=priority)
         return mission
 
@@ -286,8 +317,18 @@ class MissionService:
         node = next((item for item in mission["nodes"] if item["node_id"] == node_id), None)
         if node is None:
             raise NotFoundError(f"unknown node: {mission_id}/{node_id}")
-        if mission["state"] != MissionState.FAILED or node["state"] != NodeState.FAILED:
-            raise ConflictError("retry requires the selected node and mission to be FAILED")
+        # A node may be retried after it failed, and after a gate refused it.
+        # Both are already legal BLOCKED/FAILED -> READY transitions, and a
+        # mission stopped by Zgredek or the budget would otherwise have no way
+        # back once the operator resolves the cause.
+        retryable = {
+            (MissionState.FAILED, NodeState.FAILED),
+            (MissionState.BLOCKED, NodeState.BLOCKED),
+        }
+        if (mission["state"], node["state"]) not in retryable:
+            raise ConflictError(
+                "retry requires the selected node and mission to be FAILED or BLOCKED"
+            )
         self.store.transition_node(
             mission_id,
             node_id,
@@ -559,13 +600,17 @@ class MissionService:
                 "unavailable": sum(1 for w in workers if w["availability"] == "UNAVAILABLE"),
             },
             "budgets": budgets,
-            # Zgredek is the drift/context authority. No packet contract exists
-            # in this repository yet, so its state is UNKNOWN rather than "ok".
+            # Zgredek is the drift/context authority. The local deterministic
+            # adapter is connected; the separate Zgredek product remains UNKNOWN.
             "zgredek": {
-                "connected": False,
-                "contextPacket": "UNKNOWN",
-                "driftDetection": "UNKNOWN",
-                "reason": "brak zaimplementowanego kontraktu context packet",
+                "connected": True,
+                "adapter": self.zgredek.adapter_id,
+                "contextPacket": "ACTIVE",
+                "driftDetection": "ACTIVE",
+                "packets": len(
+                    [m for m in missions if self.store.context_packet(m["mission_id"])]
+                ),
+                "reason": "lokalny deterministyczny adapter Zgredka; zewnętrzny produkt Zgredek pozostaje UNKNOWN",
             },
         }
 
@@ -616,6 +661,84 @@ class MissionService:
         if spent >= limit:
             return f"limit misji wyczerpany ({spent:.4f}/{limit:.4f})"
         return ""
+
+    # ------------------------------------------------------------------
+    # Zgredek context packet
+    # ------------------------------------------------------------------
+
+    def context_packet(self, mission_id: str) -> dict[str, Any]:
+        """Packet, its validation verdict and its drift status for one mission."""
+        mission = self.store.get_mission(mission_id)
+        stored = self.store.context_packet(mission_id)
+        base_branch = mission.get("manifest", {}).get("base_branch", "main")
+        if stored is None:
+            return {
+                "available": False,
+                "valid": False,
+                "drift": {"status": "UNKNOWN", "findings": [], "reason": "brak packetu"},
+                "invalidReasons": ["brak context packetu dla tej misji"],
+                "missionId": mission_id,
+            }
+        packet = ContextPacket.from_dict(stored)
+        reasons = self.zgredek.verify(
+            packet,
+            mission_id=mission_id,
+            repository=mission["repository"],
+            base_branch=base_branch,
+        )
+        # A drift verdict computed from an untrusted packet is worthless: the
+        # recorded hashes it compares against are exactly what may have been
+        # tampered with. An invalid packet therefore yields UNKNOWN drift, never
+        # PASS, so the UI cannot show a reassuring verdict beside a refusal.
+        drift = (
+            self.zgredek.drift_report(packet)
+            if not reasons
+            else {
+                "status": "UNKNOWN",
+                "findings": [],
+                "reason": "packet nieważny; werdykt driftu nieoznaczalny",
+            }
+        )
+        return {
+            "available": True,
+            "valid": not reasons,
+            "invalidReasons": reasons,
+            "drift": drift,
+            "packet": stored,
+        }
+
+    def _refuse_without_context(self, mission: dict[str, Any]) -> str:
+        """Return a refusal reason, or empty when the packet may be used.
+
+        Drift is reported but does not by itself refuse: a changed lock is a
+        finding for OSA, while a missing, tampered or mismatched packet is a
+        hard stop. An UNKNOWN drift verdict is treated as a stop, because
+        UNKNOWN never satisfies a gate.
+        """
+        report = self.context_packet(mission["mission_id"])
+        verdict = "PASS"
+        refusal = ""
+        if not report["available"] or not report["valid"]:
+            refusal = "; ".join(report["invalidReasons"]) or "context packet nieważny"
+            verdict = "REFUSED"
+        elif report["drift"]["status"] == "UNKNOWN":
+            refusal = f"drift nieoznaczalny: {report['drift'].get('reason', '')}"
+            verdict = "UNKNOWN"
+        else:
+            verdict = report["drift"]["status"]
+
+        self.store.append_context_event(
+            mission["mission_id"],
+            event_type="CONTEXT_PACKET_VALIDATED",
+            actor=self.zgredek.adapter_id,
+            verdict=verdict,
+            message=(
+                refusal
+                if refusal
+                else f"context packet valid; drift {report['drift']['status']}"
+            ),
+        )
+        return refusal
 
     def pending_approvals(self) -> list[dict[str, Any]]:
         """Every mission parked on a gate, with the permission colour it needs."""
@@ -815,6 +938,34 @@ class MissionService:
                         validation_result="PASS",
                     )
                     continue
+                # Zgredek's context packet gates fact loading. A missing,
+                # invalid or mission-mismatched packet refuses execution before
+                # the node ever starts, so the worker is demonstrably never
+                # dispatched and the node's attempt counter stays untouched.
+                if fresh["node_id"] == CONTEXT_GATED_NODE:
+                    refusal = self._refuse_without_context(
+                        self.store.get_mission(mission_id)
+                    )
+                    if refusal:
+                        self.store.transition_node(
+                            mission_id,
+                            fresh["node_id"],
+                            NodeState.BLOCKED,
+                            actor="zgredek",
+                            message="context packet refused",
+                            summary=refusal[:500],
+                            validation_result="UNKNOWN",
+                        )
+                        self.store.set_mission_state(
+                            mission_id,
+                            MissionState.BLOCKED,
+                            actor="zgredek",
+                            node_id=fresh["node_id"],
+                            message="mission refused by Zgredek context validation",
+                            failure_reason=refusal[:500],
+                        )
+                        return
+
                 state = NODE_MISSION_STATES[fresh["node_id"]]
                 self.store.set_mission_state(
                     mission_id,
