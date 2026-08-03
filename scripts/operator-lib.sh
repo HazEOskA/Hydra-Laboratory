@@ -71,9 +71,31 @@ require_host() {
     || die "user gate: this bundle runs only as $REQUIRED_USER (current user is '$u')"
 }
 
+# Pick an evidence root this user can actually write to.
+#
+# /var/lib/hydra-hermes belongs to root, but the bundle runs as hydra, so the
+# old default aborted the whole run on a permission error. The state directory
+# is still preferred when it is writable — the systemd units use it — and the
+# operator's home is the fallback, which is where earlier runs already wrote.
+resolve_evidence_root() {
+  local candidates=() dir
+  [[ -n "${HYDRA_EVIDENCE_ROOT:-}" ]] && candidates+=("$HYDRA_EVIDENCE_ROOT")
+  candidates+=("/var/lib/hydra-hermes/evidence" "$HOME/hydra-operator-evidence")
+  for dir in "${candidates[@]}"; do
+    if mkdir -p "$dir" 2>/dev/null && [[ -w "$dir" ]]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+  done
+  return 1
+}
+
 new_run_dir() {
-  local kind="$1"
-  RUN_DIR="$EVIDENCE_ROOT/${kind}-$(stamp)"
+  local kind="$1" root
+  root="$(resolve_evidence_root)" \
+    || die "no writable evidence root (tried \$HYDRA_EVIDENCE_ROOT, /var/lib/hydra-hermes/evidence, \$HOME/hydra-operator-evidence)"
+  EVIDENCE_ROOT="$root"
+  RUN_DIR="$root/${kind}-$(stamp)"
   mkdir -p "$RUN_DIR" || die "cannot create evidence directory $RUN_DIR"
   chmod 700 "$RUN_DIR"
   printf '%s\n' "$RUN_DIR"
