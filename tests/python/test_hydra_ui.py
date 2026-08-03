@@ -22,11 +22,15 @@ from hydra_control.service import MissionService  # noqa: E402
 # The canonical Polish operator views, in declaration order.
 EXPECTED_NAVIGATION = [
     "Centrum dowodzenia",
+    "Zgredek",
     "Projekty",
     "Misje",
     "Kolejka",
     "Michael Angelo",
     "Workery / Minions",
+    "NVIDIA / NemoClaw",
+    "Portfel / MoonPay",
+    "Skrzynka mailowa",
     "Sandboksy",
     "Modele",
     "Budżety",
@@ -36,6 +40,9 @@ EXPECTED_NAVIGATION = [
     "Artefakty",
     "Dowody",
     "Recovery",
+    "Genkit Lab",
+    "Windows / RTX",
+    "Web3 Lab",
     "Repozytoria",
     "Polityki AI",
     "Dziennik audytu",
@@ -44,9 +51,10 @@ EXPECTED_NAVIGATION = [
 
 # Every view the canon requires must be reachable by route id.
 REQUIRED_ROUTES = [
-    "dashboard", "projects", "missions", "queue", "michael-angelo",
-    "workers", "sandboxes", "models", "budgets", "approvals",
-    "health", "logs", "artifacts", "evidence", "recovery",
+    "dashboard", "zgredek", "projects", "missions", "queue", "michael-angelo",
+    "workers", "nvidia", "wallet", "mailbox", "sandboxes", "models", "budgets",
+    "approvals", "health", "logs", "artifacts", "evidence", "recovery",
+    "genkit-lab", "windows-rtx", "web3-lab",
 ]
 
 

@@ -3,13 +3,49 @@
 // Operator dashboard (PL). Every control here calls a real control-plane
 // endpoint. Anything without a backing endpoint renders as UNKNOWN /
 // NIEPODŁĄCZONE and stays disabled — nothing on this surface is simulated.
+// Features the canon requires but this build does not contain are declared
+// here as first-class views. They render a MISSING FROM CURRENT BUILD card with
+// the forensic result, never a fabricated status and never a working control.
+const MISSING_FEATURES = {
+  wallet: {
+    title: "Portfel agentów / MoonPay",
+    kicker: "ŚRODKI AGENTA · FUNDING · PŁATNOŚCI",
+    scope: ["portfel / środki agenta", "funding", "płatności", "saldo", "historia transakcji", "limity i approvals"],
+    lastSource: "config/tools.yaml → narzędzie `payments`",
+    sourceDetail: "enabled: false · permission_default: RED · secrets: [] · health_check: \"false\"",
+    quote: "Disabled. No payment capability is wired in this baseline.",
+    branch: "obecny branch i main — identycznie",
+    commit: "2e0ab66 (i cała historia wstecz)",
+    recovery: "NIE DO ODZYSKANIA — nigdy nie zaimplementowane",
+    blocker: "scripts/validate-godlayer.sh:91 wymusza, by narzędzie payments pozostało wyłączone. Zmiana wymaga jawnej decyzji OSA i nowelizacji D-005.",
+    related: "Pokrewne: lib/hermes/revenue.py rozdziela kwoty prognozowane od otrzymanych, ale nie przechowuje środków ani nie wykonuje przelewów.",
+  },
+  mailbox: {
+    title: "Skrzynka mailowa agentów",
+    kicker: "INBOX · DRAFTY · WYSYŁKA ZA APPROVALEM",
+    scope: ["inbox", "wiadomości", "drafty", "załączniki", "statusy", "wysyłka za approvalem OSA", "audit trail"],
+    lastSource: "config/tools.yaml → narzędzie `email`",
+    sourceDetail: "enabled: true · draft: GREEN · send: RED · secrets: [SMTP_URL] · health_check: \"hermes_email_probe\"",
+    quote: "Outreach drafting. Sending always requires scoped OSA approval.",
+    branch: "obecny branch i main — identycznie",
+    commit: "f705340 (kontrakt narzędzia) — bez implementacji",
+    recovery: "KONTRAKT ISTNIEJE, IMPLEMENTACJI BRAK",
+    blocker: "Brak `hermes_email_probe`, zero użyć smtplib/imaplib. D-005 odracza messaging. validate-godlayer.sh sprawdza, że żadna automatyzacja nie może wysłać maila.",
+    related: "Repozytorium HazEOskA/Inbox-worker-ai istnieje, ale jest PUSTE — zero commitów.",
+  },
+};
+
 const NAV_ITEMS = [
   ["dashboard", "Centrum dowodzenia", "◇"],
+  ["zgredek", "Zgredek", "◉"],
   ["projects", "Projekty", "▤"],
   ["missions", "Misje", "⌬"],
   ["queue", "Kolejka", "⋮"],
   ["michael-angelo", "Michael Angelo", "Ψ"],
   ["workers", "Workery / Minions", "⎈"],
+  ["nvidia", "NVIDIA / NemoClaw", "▷"],
+  ["wallet", "Portfel / MoonPay", "$"],
+  ["mailbox", "Skrzynka mailowa", "✉"],
   ["sandboxes", "Sandboksy", "⬡"],
   ["models", "Modele", "◈"],
   ["budgets", "Budżety", "$"],
@@ -19,6 +55,9 @@ const NAV_ITEMS = [
   ["artifacts", "Artefakty", "▦"],
   ["evidence", "Dowody", "◎"],
   ["recovery", "Recovery", "↺"],
+  ["genkit-lab", "Genkit Lab", "⚗"],
+  ["windows-rtx", "Windows / RTX", "▣"],
+  ["web3-lab", "Web3 Lab", "◈"],
   ["repositories", "Repozytoria", "▱"],
   ["policies-ai", "Polityki AI", "⚖"],
   ["audit-log", "Dziennik audytu", "≋"],
@@ -394,7 +433,12 @@ function renderMichaelAngelo() {
   const label = el("label", "sr-only", "Wiadomość do Michael Angelo", { for: "michael-composer" });
   const input = el("textarea", null, null, { id: "michael-composer", rows: "3", placeholder: "Runtime czatu Michael Angelo nie jest podłączony…", disabled: true });
   const actions = el("div", "composer-actions");
-  append(actions, el("span", "composer-state", "NIEPODŁĄCZONE · WEJŚCIE ZABLOKOWANE"), button("Zatrzymaj", "danger-button", null, { disabled: true }), button("Wyślij", "primary-button", null, { disabled: true }));
+  append(actions,
+    el("span", "composer-state", "NIEPODŁĄCZONE · WEJŚCIE ZABLOKOWANE"),
+    button("Zatrzymaj", "danger-button", null,
+      { disabled: true, title: "Brak runtime'u czatu Michael Angelo — nie ma czego zatrzymać" }),
+    button("Wyślij", "primary-button", null,
+      { disabled: true, title: "Brak wywoływalnego endpointu czatu; żadna odpowiedź nie jest fabrykowana" }));
   append(composer, label, input, actions);
   append(chat, chatHeader, thread, composer);
 
@@ -1534,9 +1578,156 @@ function renderSettings() {
   return view;
 }
 
+// ---------------------------------------------------------------- Disclosure
+
+function renderMissingFeature(key) {
+  const f = MISSING_FEATURES[key];
+  const view = el("div", "view");
+  view.append(pageIntro(f.kicker, f.title,
+    "Ta funkcja nie występuje w obecnym buildzie. Poniżej wynik inwentaryzacji forensycznej, a nie zastępczy interfejs.",
+    statusLabel("MISSING FROM CURRENT BUILD")));
+
+  const found = el("div");
+  append(found,
+    statusLabel("MISSING FROM CURRENT BUILD"),
+    dataField("Ostatnie odnalezione źródło", f.lastSource),
+    dataField("Szczegóły źródła", f.sourceDetail),
+    dataField("Branch", f.branch),
+    dataField("Commit", f.commit),
+    dataField("Status recovery", f.recovery),
+    el("p", "muted-copy", `„${f.quote}”`),
+  );
+  view.append(panel("Wynik inwentaryzacji", found, { index: "01" }));
+
+  const blocked = el("div");
+  append(blocked, statusLabel("ZABLOKOWANE"), el("p", "muted-copy", f.blocker));
+  if (f.related) blocked.append(el("p", "muted-copy", f.related));
+  view.append(panel("Blokada", blocked, { index: "02" }));
+
+  const scope = el("ul", "risk-list");
+  f.scope.forEach((item) => scope.append(el("li", null, item)));
+  view.append(panel("Zakres oczekiwany przez kanon — nieobecny", scope, { index: "03" }));
+
+  const controls = el("div", "mission-actions");
+  append(controls,
+    button("Utwórz portfel", "primary-button", null,
+      { disabled: true, title: "Brak backendu: funkcja nieobecna w tym buildzie" }),
+    button("Wykonaj płatność", "danger-button", null,
+      { disabled: true, title: "Brak backendu: funkcja nieobecna w tym buildzie" }),
+  );
+  if (key === "mailbox") {
+    controls.replaceChildren(
+      button("Nowa wiadomość", "primary-button", null,
+        { disabled: true, title: "Brak backendu: implementacja nie istnieje" }),
+      button("Wyślij (wymaga OSA)", "danger-button", null,
+        { disabled: true, title: "Brak backendu: implementacja nie istnieje" }),
+    );
+  }
+  view.append(panel("Kontrolki", controls, { index: "04", subtitle: "Wyłączone z podaną przyczyną" }));
+  return view;
+}
+
+function renderNvidia() {
+  const view = el("div", "view");
+  view.append(pageIntro("INFERENCE · AUDYT READ-ONLY", "NVIDIA / NemoClaw",
+    "Audyt jest przypisany do zablokowanego hosta hydra-hermes-runtime-01. Ta sesja działa gdzie indziej, więc wszystkie werdykty pozostają UNKNOWN.",
+    statusLabel("AUDYT NIEWYKONANY")));
+
+  const verdicts = el("div");
+  [
+    ["ENDPOINT_CONFIGURED", "UNKNOWN"],
+    ["ENDPOINT_REACHABLE", "UNKNOWN"],
+    ["MODEL_ROUTE_HEALTHY", "UNKNOWN"],
+    ["REAL_INFERENCE", "UNKNOWN"],
+    ["CREDENTIAL_ISOLATION", "UNKNOWN"],
+    ["NVIDIA_FREE_ENTITLEMENT", "UNKNOWN"],
+  ].forEach(([k, v]) => append(verdicts, dataField(k, v)));
+  verdicts.append(el("p", "muted-copy",
+    "UNKNOWN nie jest uspokojeniem. Wymagany wynik NVIDIA_KEY_IN_SANDBOX=ABSENT nie został wykazany — izolację credentiali należy traktować jako niezweryfikowaną."));
+  view.append(panel("Werdykty audytu", verdicts, { index: "01" }));
+
+  const why = el("div");
+  append(why,
+    dataField("Wymagany host", "hydra-hermes-runtime-01"),
+    dataField("Host tej sesji", "vm"),
+    dataField("nemohermes / nemoclaw", "BRAK W PATH"),
+    dataField("Wykonanych komend", "0"),
+    el("p", "muted-copy", "Runbook z komendami w kolejności: docs/evidence/nvidia-nemoclaw-audit/RUNBOOK.md"),
+  );
+  view.append(panel("Dlaczego nie wykonano", why, { index: "02" }));
+
+  const routing = el("div");
+  for (const model of state.models) {
+    append(routing, dataField(`${model.model_id} (${model.role})`, model.availability));
+  }
+  if (!state.models.length) routing.append(unavailable("Brak modeli", "Rejestr modeli jest pusty.", "BRAK DANYCH"));
+  view.append(panel("Model Router — stan lokalny (nie runtime)", routing,
+    { index: "03", subtitle: "Sondowane z tego hosta, nie z hydra-hermes-runtime-01" }));
+  return view;
+}
+
+function renderSurface(projectKey, title, kicker, copy) {
+  const view = el("div", "view");
+  const project = state.projects.find((p) => p.key === projectKey);
+  view.append(pageIntro(kicker, title, copy,
+    statusLabel(project ? `ZAREJESTROWANY · ${project.permission}` : "BRAK W REJESTRZE")));
+  const body = el("div");
+  if (!project) {
+    body.append(unavailable("Brak w rejestrze projektów", "Ta powierzchnia nie jest zarejestrowana.", "BRAK DANYCH"));
+  } else {
+    const repos = state.repositories.filter((r) => r.project_key === project.key);
+    append(body,
+      statusLabel(project.permission),
+      el("p", "muted-copy", project.description || "Brak opisu."),
+      dataField("Klucz", project.key),
+      dataField("Powierzchnia", project.surface),
+      dataField("Uprawnienie", project.permission),
+      dataField("Repozytoria", String(repos.length)),
+      dataField("Wykonywalne repozytoria", String(repos.filter((r) => r.executable).length)),
+      dataField("Execution plane", "BRAK — powierzchnia zarejestrowana, nie uruchamialna"),
+      el("p", "muted-copy",
+        "Ta powierzchnia jest widoczna i objęta nadzorem uprawnień, ale nie ma w tym repozytorium żadnego runtime'u wykonawczego. Status wykonania: UNKNOWN."),
+    );
+    if (project.surface === "WEB3_LAB") {
+      body.append(el("p", "muted-copy", "IZOLACJA: odseparowany od standardowego execution plane."));
+    }
+  }
+  view.append(panel("Stan powierzchni", body, { index: "01" }));
+  return view;
+}
+
+function renderZgredekView() {
+  const view = el("div", "view");
+  view.append(pageIntro("STRAŻNIK KONTEKSTU I DRIFTU", "Zgredek",
+    "Zgredek przygotowuje i zatwierdza context packet oraz wykrywa drift. Nie koduje, nie uruchamia workera i nie wdraża.",
+    statusLabel(state.fullHealth?.zgredek?.connected ? "ADAPTER PODŁĄCZONY" : "NIEPODŁĄCZONY")));
+  view.append(renderZgredekCard());
+  const boundary = el("div");
+  append(boundary,
+    dataField("Adapter", state.fullHealth?.zgredek?.adapter || "UNKNOWN"),
+    dataField("Zewnętrzny produkt Zgredek", "UNKNOWN"),
+    dataField("Bramkowany node", "repository-fact-load"),
+    dataField("Packety w bazie", String(state.fullHealth?.zgredek?.packets ?? 0)),
+    el("p", "muted-copy",
+      "Granica jest strukturalna: moduł nie wykonuje podprocesów, nie otwiera gniazd i nie zapisuje niczego poza zwracanym packetem. Odmowę wykonuje Hydra."),
+  );
+  view.append(panel("Granica warstwy", boundary, { index: "02" }));
+  return view;
+}
+
 function renderRoute() {
   switch (state.route) {
     case "dashboard": return renderDashboard();
+    case "zgredek": return renderZgredekView();
+    case "nvidia": return renderNvidia();
+    case "wallet": return renderMissingFeature("wallet");
+    case "mailbox": return renderMissingFeature("mailbox");
+    case "genkit-lab": return renderSurface("genkit-lab", "Genkit Lab",
+      "EKSPERYMENTY AI · PROTOTYPY", "Powierzchnia zarejestrowana w control plane. Brak runtime'u wykonawczego w tym repozytorium.");
+    case "windows-rtx": return renderSurface("windows-rtx", "Windows / RTX",
+      "RTX · BLENDER · OBRAZ · WIDEO · 3D", "Powierzchnia zarejestrowana w control plane. Brak runtime'u wykonawczego w tym repozytorium.");
+    case "web3-lab": return renderSurface("web3-lab", "Web3 Lab",
+      "ODSEPAROWANY RESEARCH · PAPER TRADING", "Powierzchnia zarejestrowana i odseparowana od standardowego execution plane.");
     case "projects": return renderProjects();
     case "missions": return renderMissions();
     case "queue": return renderQueue();
