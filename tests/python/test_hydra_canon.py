@@ -271,6 +271,10 @@ class SchedulerCase(unittest.TestCase):
 
     def test_tick_dispatches_a_waiting_mission(self) -> None:
         mission = self.service.create_mission({"title": "Sched", "request": "Add a helper"})
+        packet = self.service.store.context_packet(mission["mission_id"])
+        self.service.approve_context_packet(
+            mission["mission_id"], actor="OSA", packet_sha256=packet["sha256"]
+        )
         dispatched = self.scheduler.tick()
         self.assertEqual(dispatched, 1)
         self.service.wait(mission["mission_id"], timeout=60)
@@ -309,6 +313,11 @@ class CompletionGateCase(unittest.TestCase):
             }
         )
         cls.mission_id = cls.mission["mission_id"]
+        # Zgredek prepares context; OSA accepts it before the mission may run.
+        _packet = cls.service.store.context_packet(cls.mission_id)
+        cls.service.approve_context_packet(
+            cls.mission_id, actor="OSA", packet_sha256=_packet["sha256"]
+        )
         cls.service.start(cls.mission_id, asynchronous=False)
         cls.service.approve(cls.mission_id, gate="architecture", actor="OSA", asynchronous=False)
         cls.service.approve(cls.mission_id, gate="human", actor="OSA", asynchronous=False)

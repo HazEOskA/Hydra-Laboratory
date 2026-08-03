@@ -58,7 +58,7 @@ class PacketPreparationCase(unittest.TestCase):
 
     def test_schema_version_is_stable(self) -> None:
         self.assertEqual(self.packet.schema_version, PACKET_SCHEMA_VERSION)
-        self.assertEqual(PACKET_SCHEMA_VERSION, "zgredek-context-packet/0.1")
+        self.assertEqual(PACKET_SCHEMA_VERSION, "zgredek-context-packet/0.2")
 
     def test_sha256_covers_the_payload_and_is_reproducible(self) -> None:
         self.assertEqual(self.packet.sha256, canonical_sha256(self.packet.payload()))
@@ -175,13 +175,11 @@ class PacketVerificationCase(unittest.TestCase):
         reasons = self.zgredek.verify(self.packet, **{**self.binding, "base_branch": "develop"})
         self.assertTrue(any("innego brancha" in r for r in reasons))
 
-    def test_unapproved_packet_is_refused(self) -> None:
-        unapproved = self._mutate(approvedBy="", approvedAt="")
-        unapproved = ContextPacket.from_dict(
-            {**unapproved.to_dict(), "sha256": canonical_sha256(unapproved.payload())}
-        )
-        reasons = self.zgredek.verify(unapproved, **self.binding)
-        self.assertTrue(any("zatwierdzony" in r for r in reasons))
+    def test_freshly_prepared_packet_is_pending_not_approved(self) -> None:
+        # Content is valid, but nobody has accepted it yet.
+        self.assertEqual(self.zgredek.verify(self.packet, **self.binding), [])
+        reasons = self.zgredek.approval_reasons(self.packet)
+        self.assertTrue(any("PENDING_APPROVAL" in r for r in reasons))
 
     def test_unsupported_schema_version_is_refused(self) -> None:
         stale = self._mutate(schemaVersion="zgredek-context-packet/0.0")
@@ -218,6 +216,12 @@ class ContextGateCase(unittest.TestCase):
             {"title": "Ctx", "request": "Add a helper", "requiredTests": ["test_app.py"]}
         )["mission_id"]
 
+    def _approve(self, mission_id: str, actor: str = "OSA") -> dict:
+        packet = self.service.store.context_packet(mission_id)
+        return self.service.approve_context_packet(
+            mission_id, actor=actor, packet_sha256=packet["sha256"]
+        )
+
     def test_packet_is_prepared_at_intake(self) -> None:
         report = self.service.context_packet(self._mission())
         self.assertTrue(report["available"])
@@ -232,6 +236,7 @@ class ContextGateCase(unittest.TestCase):
 
     def test_valid_packet_lets_fact_load_run(self) -> None:
         mission_id = self._mission()
+        self._approve(mission_id)
         self.service.start(mission_id, asynchronous=False)
         mission = self.service.store.get_mission(mission_id)
         node = next(n for n in mission["nodes"] if n["node_id"] == "repository-fact-load")
@@ -323,8 +328,10 @@ class ContextGateCase(unittest.TestCase):
         self.service.start(mission_id, asynchronous=False)
         self.assertEqual(self.service.store.get_mission(mission_id)["state"], "BLOCKED")
 
-        # Zgredek re-approves; the mission resumes without losing its ledger.
+        # The packet is restored and OSA approves it; the mission resumes
+        # without losing its ledger.
         self.service.store.save_context_packet(mission_id, good)
+        self._approve(mission_id)
         self.service.retry(mission_id, "repository-fact-load", "OSA", asynchronous=False)
 
         mission = self.service.store.get_mission(mission_id)
@@ -345,6 +352,10 @@ class ContextPacketApiCase(unittest.TestCase):
         cls.mission_id = cls.service.create_mission(
             {"title": "Api", "request": "Add a helper"}
         )["mission_id"]
+        packet = cls.service.store.context_packet(cls.mission_id)
+        cls.service.approve_context_packet(
+            cls.mission_id, actor="OSA", packet_sha256=packet["sha256"]
+        )
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -361,7 +372,7 @@ class ContextPacketApiCase(unittest.TestCase):
         self.assertTrue(payload["valid"])
         self.assertEqual(payload["drift"]["status"], "PASS")
         packet = payload["packet"]
-        self.assertEqual(packet["schemaVersion"], "zgredek-context-packet/0.1")
+        self.assertEqual(packet["schemaVersion"], "zgredek-context-packet/0.2")
         self.assertEqual(packet["missionId"], self.mission_id)
         self.assertEqual(len(packet["sha256"]), 64)
         for key in (

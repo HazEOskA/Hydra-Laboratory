@@ -227,6 +227,13 @@ class ConflictError(ControlPlaneError):
     status = 409
 
 
+class AuthorizationError(ControlPlaneError):
+    """The actor is known but not permitted to take this action."""
+
+    code = "NOT_AUTHORIZED"
+    status = 403
+
+
 class BackendError(ControlPlaneError):
     code = "BACKEND_ERROR"
     status = 500

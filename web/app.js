@@ -531,7 +531,13 @@ function renderZgredekCard() {
     dataField("Architecture locks", packet ? String((packet.architectureLocks || []).length) : "—"),
     dataField("Zatwierdzone decyzje", packet ? String((packet.acceptedDecisions || []).length) : "—"),
     dataField("Ownership", packet?.ownership?.status || "UNKNOWN"),
+    dataField("Zatwierdzenie", ctx?.approval?.status || "—"),
+    dataField("Zatwierdził", ctx?.approval?.approvedBy || "—"),
   );
+  if (ctx?.available && ctx.valid && !ctx.approval?.approved) {
+    body.append(button("Zatwierdź context packet (OSA)", "approval-button full-width",
+      () => approveContextPacket(state.selectedMissionId, packet?.sha256)));
+  }
   if (ctx?.invalidReasons?.length) {
     const reasons = el("ul", "risk-list");
     ctx.invalidReasons.forEach((r) => reasons.append(el("li", null, r)));
@@ -945,6 +951,20 @@ function renderRecovery() {
   }
   view.append(grid);
   return view;
+}
+
+async function approveContextPacket(missionId, packetSha256) {
+  if (!missionId || !packetSha256) return;
+  try {
+    // The approval is granted for this exact hash; a stale page cannot approve
+    // content the operator did not see.
+    await api(`/api/context-packet/${missionId}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ packetSha256 }),
+    });
+    state.details.delete(missionId);
+    await refreshData({ deep: true });
+  } catch (error) { showError(error); }
 }
 
 async function downloadRollback(missionId) {

@@ -170,6 +170,22 @@ class HydraRequestHandler(BaseHTTPRequestHandler):
                     self.server.service.retry(match["mission"], match["node"], actor),
                 )
                 return
+            match = re.fullmatch(rf"/api/context-packet/{MISSION_ID}/approve", path)
+            if match:
+                payload = self._body()
+                if set(payload) != {"packetSha256"}:
+                    raise ValidationError(
+                        "approval body must contain only 'packetSha256'"
+                    )
+                self._json(
+                    HTTPStatus.OK,
+                    self.server.service.approve_context_packet(
+                        match["mission"],
+                        actor=actor,
+                        packet_sha256=payload.get("packetSha256"),
+                    ),
+                )
+                return
             match = re.fullmatch(rf"/api/missions/{MISSION_ID}/cancel", path)
             if match:
                 self._empty_body_only()

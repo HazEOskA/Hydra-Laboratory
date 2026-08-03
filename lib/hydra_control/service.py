@@ -17,6 +17,7 @@ from .adapters import describe_workers, resolve_worker
 from .backend import BACKEND_ID, SAFE_REPOSITORY, DeterministicLocalBackend, ExecutionBackend
 from .compiler import DeterministicMissionCompiler, MissionCompiler
 from .models import (
+    AuthorizationError,
     BackendError,
     CheckStatus,
     ConflictError,
@@ -30,7 +31,12 @@ from .models import (
     ValidationError,
 )
 from .store import ControlPlaneStore, utc_now
-from .zgredek import ContextAuthority, ContextPacket, DeterministicZgredek
+from .zgredek import (
+    STATUS_APPROVED,
+    ContextAuthority,
+    ContextPacket,
+    DeterministicZgredek,
+)
 
 
 ALLOWED_CREATE_FIELDS = frozenset(
@@ -699,12 +705,92 @@ class MissionService:
                 "reason": "packet nieważny; werdykt driftu nieoznaczalny",
             }
         )
+        approval_reasons = self.zgredek.approval_reasons(packet)
         return {
             "available": True,
             "valid": not reasons,
             "invalidReasons": reasons,
             "drift": drift,
+            "approval": {
+                "status": packet.status,
+                "approved": not reasons and not approval_reasons,
+                "reasons": approval_reasons,
+                "approvedBy": packet.approved_by,
+                "approvedAt": packet.approved_at,
+                "approvedPacketSha256": packet.approved_packet_sha256,
+            },
             "packet": stored,
+        }
+
+    def approve_context_packet(
+        self, mission_id: str, *, actor: str, packet_sha256: str
+    ) -> dict[str, Any]:
+        """Accept a context packet for one exact content hash.
+
+        Approving a missing, invalid or tampered packet is refused. Re-approving
+        the identical hash is idempotent and appends no duplicate ledger entry.
+        """
+        self._validate_actor(actor)
+        mission = self.store.get_mission(mission_id)
+        stored = self.store.context_packet(mission_id)
+        if stored is None:
+            raise NotFoundError(f"brak context packetu dla misji: {mission_id}")
+
+        blocked = self.zgredek.can_approve(actor)
+        if blocked:
+            raise AuthorizationError("; ".join(blocked))
+
+        packet = ContextPacket.from_dict(stored)
+        base_branch = mission.get("manifest", {}).get("base_branch", "main")
+        invalid = self.zgredek.verify(
+            packet,
+            mission_id=mission_id,
+            repository=mission["repository"],
+            base_branch=base_branch,
+        )
+        if invalid:
+            raise ConflictError(
+                "nie można zatwierdzić nieważnego packetu: " + "; ".join(invalid)
+            )
+        if not isinstance(packet_sha256, str) or packet_sha256 != packet.sha256:
+            raise ConflictError(
+                "approval musi wskazywać dokładny SHA-256 bieżącego packetu"
+            )
+
+        if (
+            packet.status == STATUS_APPROVED
+            and packet.approved_packet_sha256 == packet.sha256
+        ):
+            return {
+                "approved": True,
+                "idempotent": True,
+                "approvedBy": packet.approved_by,
+                "approvedAt": packet.approved_at,
+                "approvedPacketSha256": packet.approved_packet_sha256,
+            }
+
+        now = utc_now()
+        approved = {
+            **stored,
+            "status": STATUS_APPROVED,
+            "approvedBy": actor,
+            "approvedAt": now,
+            "approvedPacketSha256": packet.sha256,
+        }
+        self.store.save_context_packet(mission_id, approved)
+        self.store.append_context_event(
+            mission_id,
+            event_type="CONTEXT_PACKET_APPROVED",
+            actor=actor,
+            verdict="APPROVED",
+            message=f"context packet {packet.sha256[:12]} approved by {actor}",
+        )
+        return {
+            "approved": True,
+            "idempotent": False,
+            "approvedBy": actor,
+            "approvedAt": now,
+            "approvedPacketSha256": packet.sha256,
         }
 
     def _refuse_without_context(self, mission: dict[str, Any]) -> str:
@@ -721,6 +807,11 @@ class MissionService:
         if not report["available"] or not report["valid"]:
             refusal = "; ".join(report["invalidReasons"]) or "context packet nieważny"
             verdict = "REFUSED"
+        elif not report["approval"]["approved"]:
+            # An unapproved packet is context nobody accepted. It refuses just
+            # as hard as a tampered one.
+            refusal = "; ".join(report["approval"]["reasons"]) or "brak zatwierdzenia packetu"
+            verdict = "UNAPPROVED"
         elif report["drift"]["status"] == "UNKNOWN":
             refusal = f"drift nieoznaczalny: {report['drift'].get('reason', '')}"
             verdict = "UNKNOWN"

@@ -18,14 +18,31 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 
-PACKET_SCHEMA_VERSION = "zgredek-context-packet/0.1"
+PACKET_SCHEMA_VERSION = "zgredek-context-packet/0.2"
 ADAPTER_ID = "zgredek-local-contract-v0.1"
+
+# Approval lifecycle. A freshly prepared packet is never usable on its own:
+# Zgredek assembles context, a human authority accepts it.
+STATUS_PENDING = "PENDING_APPROVAL"
+STATUS_APPROVED = "APPROVED"
+
+# Actors permitted to accept a context packet. OSA is Root Authority; the
+# environment variable exists so an additional approver is granted explicitly
+# rather than by editing code. Zgredek itself is never in this set.
+DEFAULT_APPROVERS = ("OSA",)
+
+
+def authorized_approvers() -> frozenset[str]:
+    raw = os.environ.get("HYDRA_CONTEXT_APPROVERS", "")
+    extra = tuple(part.strip() for part in raw.split(",") if part.strip())
+    return frozenset(DEFAULT_APPROVERS + extra)
 
 # Files treated as repository instructions, in priority order. Missing files are
 # reported as absent rather than silently skipped.
@@ -90,12 +107,18 @@ class ContextPacket:
     forbidden_drift: tuple[dict[str, Any], ...]
     required_evidence: tuple[str, ...]
     prepared_at: str
-    approved_by: str
-    approved_at: str
     sha256: str = ""
+    # Approval is recorded *outside* the hashed payload on purpose. If it were
+    # inside, accepting a packet would change its own SHA-256 and instantly
+    # invalidate the acceptance. Instead the approval pins the content hash it
+    # was granted for, so any later edit to the content breaks the match.
+    status: str = STATUS_PENDING
+    approved_by: str = ""
+    approved_at: str = ""
+    approved_packet_sha256: str = ""
 
     def payload(self) -> dict[str, Any]:
-        """Everything the hash covers. The hash itself is excluded."""
+        """Exactly the content the hash covers. No approval fields, no hash."""
         return {
             "schemaVersion": self.schema_version,
             "adapter": self.adapter,
@@ -109,13 +132,15 @@ class ContextPacket:
             "forbiddenDrift": list(self.forbidden_drift),
             "requiredEvidence": list(self.required_evidence),
             "preparedAt": self.prepared_at,
-            "approvedBy": self.approved_by,
-            "approvedAt": self.approved_at,
         }
 
     def to_dict(self) -> dict[str, Any]:
         payload = self.payload()
         payload["sha256"] = self.sha256
+        payload["status"] = self.status
+        payload["approvedBy"] = self.approved_by
+        payload["approvedAt"] = self.approved_at
+        payload["approvedPacketSha256"] = self.approved_packet_sha256
         return payload
 
     @classmethod
@@ -133,9 +158,11 @@ class ContextPacket:
             forbidden_drift=tuple(data.get("forbiddenDrift", [])),
             required_evidence=tuple(data.get("requiredEvidence", [])),
             prepared_at=data.get("preparedAt", ""),
+            sha256=data.get("sha256", ""),
+            status=data.get("status", STATUS_PENDING),
             approved_by=data.get("approvedBy", ""),
             approved_at=data.get("approvedAt", ""),
-            sha256=data.get("sha256", ""),
+            approved_packet_sha256=data.get("approvedPacketSha256", ""),
         )
 
 
@@ -284,14 +311,43 @@ class DeterministicZgredek:
             ),
             required_evidence=REQUIRED_EVIDENCE,
             prepared_at=now,
-            # Approval is what makes a packet usable. The local adapter approves
-            # its own deterministic output and says so plainly; a real Zgredek
-            # would record a human or upstream approver here instead.
-            approved_by=self.adapter_id,
-            approved_at=now,
+            # Zgredek assembles context; it never accepts it. The packet leaves
+            # preparation PENDING_APPROVAL and stays unusable until an
+            # authorized human authority approves its exact content hash.
+            status=STATUS_PENDING,
         )
         digest = canonical_sha256(packet.payload())
         return ContextPacket(**{**packet.__dict__, "sha256": digest})
+
+    # -- approval -----------------------------------------------------
+
+    def approval_reasons(self, packet: ContextPacket) -> list[str]:
+        """Why this packet's approval may not be relied on. Empty means usable."""
+        reasons: list[str] = []
+        if packet.status != STATUS_APPROVED:
+            reasons.append("packet oczekuje na zatwierdzenie (PENDING_APPROVAL)")
+            return reasons
+        if not packet.approved_by or not packet.approved_at:
+            reasons.append("approval nie ma aktora lub znacznika czasu")
+        if packet.approved_by == self.adapter_id:
+            # Structural guarantee, not a policy note: Zgredek cannot be the
+            # authority that accepts its own output.
+            reasons.append("Zgredek nie może zatwierdzić własnego packetu")
+        elif packet.approved_by and packet.approved_by not in authorized_approvers():
+            reasons.append(f"aktor '{packet.approved_by}' nie jest autoryzowany do zatwierdzania")
+        if packet.approved_packet_sha256 != packet.sha256:
+            reasons.append(
+                "approval dotyczy innego SHA-256; treść packetu zmieniła się po zatwierdzeniu"
+            )
+        return reasons
+
+    def can_approve(self, actor: str) -> list[str]:
+        """Whether this actor may accept a packet at all."""
+        if actor == self.adapter_id:
+            return ["Zgredek nie może zatwierdzać własnego packetu"]
+        if actor not in authorized_approvers():
+            return [f"aktor '{actor}' nie jest autoryzowany do zatwierdzania context packetu"]
+        return []
 
     # -- verification -------------------------------------------------
 
@@ -313,8 +369,6 @@ class DeterministicZgredek:
             reasons.append("packet nie ma sumy SHA-256")
         elif packet.sha256 != canonical_sha256(packet.payload()):
             reasons.append("suma SHA-256 packetu nie zgadza się z jego treścią")
-        if not packet.approved_by or not packet.approved_at:
-            reasons.append("packet nie został zatwierdzony przez Zgredka")
         if packet.mission_id != mission_id:
             reasons.append(
                 f"packet dotyczy innej misji: {packet.mission_id or 'BRAK'} != {mission_id}"
