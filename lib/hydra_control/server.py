@@ -312,7 +312,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    service = MissionService.local(args.state_dir)
+    service = MissionService.configured(args.state_dir)
     service.seed_registries()
     recovered = service.recover(asynchronous=True)
     scheduler = MissionScheduler(service)

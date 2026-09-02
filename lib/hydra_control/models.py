@@ -99,12 +99,18 @@ class MissionManifest:
     requested_worker: str = "AUTO"
     timeout_seconds: int = 900
     blueprint: str = "standard-coding-mission"
+    base_commit: str = ""
+    allowed_scope: tuple[str, ...] = ()
+    test_command: tuple[str, ...] = ()
+    environment: str = "development"
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["risk_level"] = str(self.risk_level)
         payload["acceptance_criteria"] = list(self.acceptance_criteria)
         payload["required_tests"] = list(self.required_tests)
+        payload["allowed_scope"] = list(self.allowed_scope)
+        payload["test_command"] = list(self.test_command)
         payload["nodes"] = [
             {
                 "node_id": node.node_id,

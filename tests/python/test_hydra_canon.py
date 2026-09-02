@@ -100,7 +100,14 @@ class WorkerAdapterCase(unittest.TestCase):
         ids = {worker["workerId"] for worker in described}
         self.assertEqual(
             ids,
-            {"deterministic-local", "codex", "openhands", "claude-worker", "generic-minion"},
+            {
+                "deterministic-local",
+                "osa-execution-force",
+                "codex",
+                "openhands",
+                "claude-worker",
+                "generic-minion",
+            },
         )
         for worker in described:
             self.assertIn(worker["availability"], {adapters.AVAILABLE, adapters.UNAVAILABLE})

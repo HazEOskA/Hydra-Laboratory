@@ -82,6 +82,14 @@ def _probe_service(env_var: str, label: str) -> Callable[[], tuple[str, str]]:
     return probe
 
 
+def _probe_osa_execution_force() -> tuple[str, str]:
+    if not os.environ.get("HYDRA_OSA_EXECUTION_FORCE_URL"):
+        return UNAVAILABLE, "brak HYDRA_OSA_EXECUTION_FORCE_URL"
+    if not os.environ.get("OSA_ACTIONS_API_KEY"):
+        return UNAVAILABLE, "brak OSA_ACTIONS_API_KEY; RuntimeV2 nie jest autoryzowany"
+    return AVAILABLE, "skonfigurowany oficjalny endpoint OSA Execution Force RuntimeV2"
+
+
 def _probe_generic() -> tuple[str, str]:
     # The generic slot exists so a future Minion registers without a schema
     # change. It is deliberately never AVAILABLE until a concrete adapter binds.
@@ -102,6 +110,19 @@ REGISTRY: tuple[WorkerAdapter, ...] = (
             "commit-bound-evidence",
         ),
         probe=_probe_local,
+    ),
+    WorkerAdapter(
+        worker_id="osa-execution-force",
+        name="OSA Execution Force RuntimeV2",
+        kind=KIND_SERVICE,
+        capabilities=(
+            "skill-resolution",
+            "execution-governance",
+            "host-action-requests",
+            "mechanical-verification",
+            "verified-evidence",
+        ),
+        probe=_probe_osa_execution_force,
     ),
     WorkerAdapter(
         worker_id="codex",

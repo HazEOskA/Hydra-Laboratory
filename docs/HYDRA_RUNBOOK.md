@@ -128,15 +128,35 @@ host. A worker becomes AVAILABLE only when its probe passes:
 
 | Worker | Requirement |
 |---|---|
+| `osa-execution-force` | `HYDRA_OSA_EXECUTION_FORCE_URL`, `OSA_ACTIONS_API_KEY`, and live `/health` PASS |
 | `codex` | `codex` on PATH **and** `HYDRA_CODEX_TOKEN` set |
 | `openhands` | `HYDRA_OPENHANDS_URL` set |
 | `claude-worker` | `claude` on PATH **and** `HYDRA_CLAUDE_WORKER_TOKEN` set |
 
-Satisfying the probe makes the adapter *selectable*, not *functional*: each
-still needs a concrete `ExecutionBackend` implementation and its own security
-review before it can execute. Until then `MissionService` accepts only
-`deterministic-local`, and intake rejects anything else with an explicit
-message.
+`osa-execution-force` has a concrete `ExecutionBackend` implementation. It is
+the only external execution authority wired into Hydra. The other declared
+workers remain unavailable until they run behind OSA Execution Force; they are
+not alternate Hydra backends. Select the canonical adapter when starting Hydra:
+
+```bash
+export HYDRA_EXECUTION_BACKEND=osa-execution-force
+export HYDRA_OSA_EXECUTION_FORCE_URL=https://your-reviewed-runtime.example
+# Inject from the host secret manager. Never commit this value.
+export OSA_ACTIONS_API_KEY=...
+PYTHONPATH=lib python3 -m hydra_control.server --state-dir "$HYDRA_STATE"
+```
+
+An OSA Execution Force mission must provide an exact lowercase `baseCommit`, a
+non-empty repository-relative `allowedScope`, a non-empty argv `testCommand`,
+and `repository=github://owner/repository`. Hydra sends these through the
+official `/api/v2/missions/run` contract. A RuntimeV2 host-action request pauses
+Hydra as `BLOCKED`; retry polls the same correlated RuntimeV2 mission. Hydra
+accepts `COMPLETED` only with distinct base/result commits, worker identity,
+executed command evidence, mechanically verified diff scope and tests, and a
+valid RuntimeV2 event hash chain.
+
+See `docs/HYDRA_OSA_EXECUTION_FORCE_ADAPTER.md` for the exact boundary and
+failure semantics.
 
 ## 6. Rollback
 

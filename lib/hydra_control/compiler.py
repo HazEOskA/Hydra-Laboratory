@@ -25,6 +25,11 @@ PIPELINE = (
     ("draft-pull-request", "Draft Pull Request"),
 )
 
+OSA_EXECUTION_FORCE_BACKEND_ID = "osa-execution-force"
+OSA_EXECUTION_FORCE_PIPELINE = tuple(
+    node for node in PIPELINE if node[0] != "sandbox-provisioning"
+)
+
 
 RISK_ORDER = {
     RiskLevel.LOW: 0,
@@ -57,6 +62,10 @@ class MissionCompiler(Protocol):
         timeout_seconds: int = 900,
         blueprint: str = "standard-coding-mission",
         risk_override: RiskLevel | None = None,
+        base_commit: str = "",
+        allowed_scope: tuple[str, ...] = (),
+        test_command: tuple[str, ...] = (),
+        environment: str = "development",
     ) -> MissionManifest: ...
 
 
@@ -97,10 +106,19 @@ class DeterministicMissionCompiler:
         timeout_seconds: int = 900,
         blueprint: str = "standard-coding-mission",
         risk_override: RiskLevel | None = None,
+        base_commit: str = "",
+        allowed_scope: tuple[str, ...] = (),
+        test_command: tuple[str, ...] = (),
+        environment: str = "development",
     ) -> MissionManifest:
         nodes: list[PipelineNodeSpec] = []
         previous = ""
-        for node_id, name in PIPELINE:
+        pipeline = (
+            OSA_EXECUTION_FORCE_PIPELINE
+            if backend == OSA_EXECUTION_FORCE_BACKEND_ID
+            else PIPELINE
+        )
+        for node_id, name in pipeline:
             dependencies = (previous,) if previous else ()
             nodes.append(
                 PipelineNodeSpec(
@@ -136,14 +154,25 @@ class DeterministicMissionCompiler:
                 "apr-commit-binding",
                 "rollback-plan",
             ),
-            execution_contract={
-                "repositoryPolicy": "built-in-fixture-only",
-                "workspacePolicy": "dedicated-root",
-                "commands": "internal-allowlist-only",
-                "productionCredentials": False,
-                "network": False,
-                "draftPullRequest": "local-descriptor-only",
-            },
+            execution_contract=(
+                {
+                    "authority": "OSA Execution Force RuntimeV2",
+                    "transport": "official-api-v2",
+                    "executionBypass": False,
+                    "fallback": "forbidden",
+                    "completion": "mechanically-verified-evidence-only",
+                    "productionCredentials": False,
+                }
+                if backend == OSA_EXECUTION_FORCE_BACKEND_ID
+                else {
+                    "repositoryPolicy": "built-in-fixture-only",
+                    "workspacePolicy": "dedicated-root",
+                    "commands": "internal-allowlist-only",
+                    "productionCredentials": False,
+                    "network": False,
+                    "draftPullRequest": "local-descriptor-only",
+                }
+            ),
             nodes=tuple(nodes),
             failure_mode=failure_mode,
             base_branch=base_branch,
@@ -154,4 +183,8 @@ class DeterministicMissionCompiler:
             requested_worker=requested_worker,
             timeout_seconds=timeout_seconds,
             blueprint=blueprint,
+            base_commit=base_commit,
+            allowed_scope=tuple(allowed_scope),
+            test_command=tuple(test_command),
+            environment=environment,
         )

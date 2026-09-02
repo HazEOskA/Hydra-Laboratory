@@ -57,6 +57,10 @@ ALLOWED_CREATE_FIELDS = frozenset(
         "timeoutSeconds",
         "blueprint",
         "priority",
+        "baseCommit",
+        "allowedScope",
+        "testCommand",
+        "environment",
     }
 )
 ALLOWED_FAILURE_MODES = frozenset({"none", "tests_once"})
@@ -64,6 +68,11 @@ ALLOWED_BLUEPRINTS = frozenset({"standard-coding-mission", "quality-only"})
 BRANCH_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$")
 MAX_TIMEOUT_SECONDS = 3600
 MAX_BUDGET_LIMIT = 1000.0
+OSA_EXECUTION_FORCE_BACKEND_ID = "osa-execution-force"
+COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+CANONICAL_REPOSITORY_PATTERN = re.compile(
+    r"^github://[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$"
+)
 ACTOR_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._@-]{0,79}$")
 SCOPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,59}$")
 
@@ -140,6 +149,24 @@ class MissionService:
         )
         return cls(store, backend)
 
+    @classmethod
+    def configured(cls, state_root: str | Path) -> "MissionService":
+        """Build the single execution authority selected by host configuration."""
+        backend_id = os.environ.get("HYDRA_EXECUTION_BACKEND", BACKEND_ID)
+        if backend_id == BACKEND_ID:
+            return cls.local(state_root)
+        if backend_id == OSA_EXECUTION_FORCE_BACKEND_ID:
+            from .osa_execution_force import OsaExecutionForceBackend
+
+            store = ControlPlaneStore(state_root)
+            try:
+                backend = OsaExecutionForceBackend.from_environment(store.artifact_root)
+            except Exception:
+                store.close()
+                raise
+            return cls(store, backend)
+        raise BackendError(f"unsupported configured execution backend: {backend_id}")
+
     def create_mission(self, payload: dict[str, Any], actor: str = "OSA") -> dict[str, Any]:
         self._validate_actor(actor)
         if not isinstance(payload, dict):
@@ -149,15 +176,26 @@ class MissionService:
             raise ValidationError(f"unknown fields: {', '.join(unknown)}")
         title = self._required_string(payload, "title", 120)
         request = self._required_string(payload, "request", 5000)
-        repository = payload.get("repository", SAFE_REPOSITORY)
-        backend_id = payload.get("backend", BACKEND_ID)
+        backend_id = payload.get("backend", self.backend.backend_id)
+        repository = payload.get(
+            "repository", SAFE_REPOSITORY if backend_id == BACKEND_ID else ""
+        )
         failure_mode = payload.get("failureMode", "none")
-        if repository != SAFE_REPOSITORY:
+        if backend_id != self.backend.backend_id:
+            raise ValidationError(
+                f"backend '{backend_id}' is not the configured execution authority"
+            )
+        if backend_id == BACKEND_ID and repository != SAFE_REPOSITORY:
             raise ValidationError(
                 "initial backend accepts only fixture://hydra-safe-demo; host paths and URLs are forbidden"
             )
-        if backend_id != BACKEND_ID:
-            raise ValidationError(f"unsupported execution backend: {backend_id}")
+        if backend_id == OSA_EXECUTION_FORCE_BACKEND_ID and (
+            not isinstance(repository, str)
+            or not CANONICAL_REPOSITORY_PATTERN.fullmatch(repository)
+        ):
+            raise ValidationError(
+                "OSA Execution Force requires repository=github://owner/repository"
+            )
         if failure_mode not in ALLOWED_FAILURE_MODES:
             raise ValidationError(
                 f"failureMode must be one of: {', '.join(sorted(ALLOWED_FAILURE_MODES))}"
@@ -187,19 +225,59 @@ class MissionService:
         if not isinstance(budget_scope, str) or not SCOPE_PATTERN.fullmatch(budget_scope):
             raise ValidationError("budgetScope must be 1-60 safe identifier characters")
 
+        base_commit = payload.get("baseCommit", "")
+        allowed_scope = self._string_list(payload, "allowedScope", 50, 240)
+        test_command = self._string_list(payload, "testCommand", 30, 500)
+        environment = payload.get("environment", "development")
+        if backend_id == OSA_EXECUTION_FORCE_BACKEND_ID:
+            if not isinstance(base_commit, str) or not COMMIT_SHA_PATTERN.fullmatch(base_commit):
+                raise ValidationError(
+                    "baseCommit must be an exact lowercase 40-character Git SHA"
+                )
+            if not allowed_scope:
+                raise ValidationError("allowedScope is required for OSA Execution Force")
+            if not test_command:
+                raise ValidationError("testCommand is required for OSA Execution Force")
+            for path in allowed_scope:
+                if path.startswith(("/", "~")) or ".." in Path(path).parts:
+                    raise ValidationError(
+                        "allowedScope entries must be repository-relative"
+                    )
+            if environment != "development":
+                raise ValidationError(
+                    "P0 OSA Execution Force missions require environment=development"
+                )
+            if failure_mode != "none":
+                raise ValidationError(
+                    "OSA Execution Force does not accept fixture failure modes"
+                )
+        elif base_commit or allowed_scope or test_command or "environment" in payload:
+            raise ValidationError(
+                "baseCommit, allowedScope, testCommand and environment belong to OSA Execution Force"
+            )
+
         # Worker routing resolves before anything is stored. An unreachable
         # worker fails intake instead of producing a mission that cannot run.
         requested_worker = payload.get("worker", "AUTO")
         if not isinstance(requested_worker, str):
             raise ValidationError("worker must be a string")
         try:
-            resolved_worker = resolve_worker(requested_worker)
+            resolved_worker = resolve_worker(
+                backend_id if requested_worker == "AUTO" else requested_worker
+            )
         except BackendError as error:
             raise ValidationError(str(error)) from error
         if resolved_worker != backend_id:
             raise ValidationError(
                 f"worker '{resolved_worker}' has no registered execution backend"
             )
+        availability = getattr(self.backend, "availability", None)
+        if callable(availability):
+            status, reason = availability()
+            if status != "AVAILABLE":
+                raise ValidationError(
+                    f"worker '{backend_id}' is UNAVAILABLE: {reason}"
+                )
 
         mission_id = str(uuid.uuid4())
         manifest = self.compiler.compile(
@@ -218,8 +296,15 @@ class MissionService:
             timeout_seconds=timeout_seconds,
             blueprint=blueprint,
             risk_override=risk_override,
+            base_commit=base_commit,
+            allowed_scope=allowed_scope,
+            test_command=test_command,
+            environment=environment,
         )
         mission = self.store.create_mission(manifest, actor)
+        if base_commit:
+            self.store.set_commits(mission_id, base_commit=base_commit)
+            mission = self.store.get_mission(mission_id)
 
         # Zgredek prepares and approves the context before the mission may run.
         # It does not execute anything; Hydra enforces the packet at dispatch.
@@ -236,7 +321,7 @@ class MissionService:
             actor=self.zgredek.adapter_id,
             verdict="PREPARED",
             message=(
-                f"context packet {packet['sha256'][:12]} prepared and approved; "
+                f"context packet {packet['sha256'][:12]} prepared and pending approval; "
                 f"{len(packet['architectureLocks'])} locks, "
                 f"{len(packet['acceptedDecisions'])} decisions"
             ),
@@ -356,13 +441,9 @@ class MissionService:
 
     def cancel(self, mission_id: str, actor: str = "OSA") -> dict[str, Any]:
         self._validate_actor(actor)
-        self.store.get_mission(mission_id)
-        try:
+        mission = self.store.get_mission(mission_id)
+        if mission["state"] != MissionState.DRAFT:
             self.backend.cancel(mission_id)
-        except Exception:
-            # A draft mission may not have an execution session yet. The durable
-            # cancellation still wins and no backend work has started.
-            pass
         self.store.cancel_mission(mission_id, actor, "cancelled by human operator")
         return self.store.get_mission(mission_id)
 
@@ -412,6 +493,17 @@ class MissionService:
                 reasons.append(f"check {name} is {value}")
         if mission["result_commit"] != bundle["resultCommit"]:
             reasons.append("stored mission result commit no longer matches the evidence bundle")
+        if mission["backend"] == OSA_EXECUTION_FORCE_BACKEND_ID:
+            if not bundle.get("runtimeV2MissionId"):
+                reasons.append("RuntimeV2 mission identity is missing")
+            if not bundle.get("runtimeV2ExecutionId"):
+                reasons.append("RuntimeV2 execution identity is missing")
+            if not bundle.get("runtimeV2ResolvedSkills"):
+                reasons.append("RuntimeV2 resolved capability is missing")
+            if not bundle.get("runtimeV2EventChainVerified"):
+                reasons.append("RuntimeV2 event chain is not verified")
+            if len(bundle.get("mechanicalEvidenceIds", [])) < 2:
+                reasons.append("RuntimeV2 mechanical evidence references are incomplete")
 
         # Canonical completion gates. Each is checked against what the bundle
         # actually recorded, so a mission cannot reach COMPLETED on a bundle that
@@ -440,22 +532,30 @@ class MissionService:
         }
 
     def backends(self) -> list[dict[str, Any]]:
+        worker = next(
+            item
+            for item in describe_workers()
+            if item["workerId"] == self.backend.backend_id
+        )
+        availability = getattr(self.backend, "availability", None)
+        if callable(availability):
+            live_status, live_reason = availability()
+        else:
+            live_status, live_reason = worker["availability"], worker["reason"]
         return [
             {
-                "id": BACKEND_ID,
-                "name": "Deterministic Local Worker",
-                "available": True,
-                "isolated": "dedicated fixture workspace",
-                "network": False,
+                "id": worker["workerId"],
+                "name": worker["name"],
+                "available": live_status == "AVAILABLE",
+                "reason": live_reason,
+                "isolated": (
+                    "dedicated fixture workspace"
+                    if self.backend.backend_id == BACKEND_ID
+                    else "owned by OSA Execution Force RuntimeV2"
+                ),
+                "network": self.backend.backend_id == OSA_EXECUTION_FORCE_BACKEND_ID,
                 "productionCredentials": False,
-                "capabilities": [
-                    "real-git-worktree",
-                    "controlled-change",
-                    "allowlisted-commands",
-                    "artifacts",
-                    "cancellation",
-                    "commit-bound-evidence",
-                ],
+                "capabilities": worker["capabilities"],
             }
         ]
 
@@ -512,7 +612,16 @@ class MissionService:
             executable=False,
             permission="RED",
         )
+        bound_backend = self.backends()[0]
         for worker in describe_workers():
+            if worker["workerId"] == bound_backend["id"]:
+                worker = {
+                    **worker,
+                    "availability": (
+                        "AVAILABLE" if bound_backend["available"] else "UNAVAILABLE"
+                    ),
+                    "reason": bound_backend["reason"],
+                }
             self.store.upsert_worker(
                 worker_id=worker["workerId"],
                 name=worker["name"],
@@ -1097,13 +1206,24 @@ class MissionService:
                     )
                     return
 
+                backend_manifest = dict(current["manifest"])
+                context_packet = self.store.context_packet(mission_id)
+                if context_packet is not None:
+                    backend_manifest["hydra_context"] = {
+                        "packetSha256": context_packet.get("sha256", ""),
+                        "status": context_packet.get("status", ""),
+                        "approvedBy": context_packet.get("approvedBy", ""),
+                        "approvedPacketSha256": context_packet.get(
+                            "approvedPacketSha256", ""
+                        ),
+                    }
                 result = self.backend.execute_task(
                     ExecuteTaskInput(
                         session_id=session.session_id,
                         mission_id=mission_id,
                         node_id=fresh["node_id"],
                         attempt=fresh["attempt"],
-                        manifest=current["manifest"],
+                        manifest=backend_manifest,
                         base_commit=current["base_commit"],
                         result_commit=current["result_commit"],
                     )
@@ -1143,6 +1263,28 @@ class MissionService:
                         command_result=command_summary,
                         commit_sha=commit_sha,
                     )
+                elif result.metadata.get("hydraDisposition") == "BLOCKED":
+                    detail = result.metadata.get("detail", result.summary)
+                    self.store.transition_node(
+                        mission_id,
+                        fresh["node_id"],
+                        NodeState.BLOCKED,
+                        actor=self.backend.backend_id,
+                        message=result.error_code or "execution authority blocked",
+                        summary=redact(detail)[:500],
+                        validation_result="UNKNOWN",
+                        artifact_refs=artifact_refs,
+                        command_result=command_summary,
+                    )
+                    self.store.set_mission_state(
+                        mission_id,
+                        MissionState.BLOCKED,
+                        actor="hydra-orchestrator",
+                        node_id=fresh["node_id"],
+                        message="mission blocked by execution authority",
+                        failure_reason=redact(detail)[:500],
+                    )
+                    return
                 else:
                     detail = result.metadata.get("detail", result.summary)
                     self.store.transition_node(
@@ -1320,18 +1462,31 @@ class MissionService:
         # A mission may not complete without a concrete way back. The plan binds
         # to the exact commits so it stays actionable after the run.
         rollback_plan = {
-            "strategy": "git-revert-to-base-commit",
+            "strategy": (
+                "governed-git-revert"
+                if mission["backend"] == OSA_EXECUTION_FORCE_BACKEND_ID
+                else "git-revert-to-base-commit"
+            ),
             "baseCommit": mission["base_commit"],
             "resultCommit": mission["result_commit"],
             "branch": mission["branch"],
             "changedFiles": changed_files,
-            "steps": [
-                "Zatrzymaj lokalny proces Hydry (control plane).",
-                f"W workspace misji wykonaj: git reset --hard {mission['base_commit']}",
-                f"Zweryfikuj, że HEAD == {mission['base_commit']}.",
-                "Usuń wyłącznie dedykowany katalog stanu tej misji.",
-                "Nie dotykaj współdzielonego state rootu Hermesa ani produkcji.",
-            ],
+            "steps": (
+                [
+                    "Utwórz nową misję Hydry przypiętą do resultCommit.",
+                    f"Zleć RuntimeV2 mechanicznie weryfikowany git revert {mission['result_commit']}.",
+                    "Uruchom ten sam wymagany zestaw testów przez OSA Execution Force.",
+                    "Zatwierdź nowy evidence bundle w standardowych bramkach Hydry.",
+                ]
+                if mission["backend"] == OSA_EXECUTION_FORCE_BACKEND_ID
+                else [
+                    "Zatrzymaj lokalny proces Hydry (control plane).",
+                    f"W workspace misji wykonaj: git reset --hard {mission['base_commit']}",
+                    f"Zweryfikuj, że HEAD == {mission['base_commit']}.",
+                    "Usuń wyłącznie dedykowany katalog stanu tej misji.",
+                    "Nie dotykaj współdzielonego state rootu Hermesa ani produkcji.",
+                ]
+            ),
             "productionImpact": False,
             "verified": bool(mission["base_commit"]) and bool(mission["result_commit"]),
         }
@@ -1346,6 +1501,12 @@ class MissionService:
             "branch": mission["branch"],
             "blueprint": manifest.get("blueprint", "standard-coding-mission"),
             "worker": mission["backend"],
+            "executionWorker": metadata.get("worker", mission["backend"]),
+            "runtimeV2MissionId": metadata.get("runtimeMissionId", ""),
+            "runtimeV2ExecutionId": metadata.get("runtimeExecutionId", ""),
+            "runtimeV2ResolvedSkills": metadata.get("resolvedSkills", []),
+            "runtimeV2EventChainVerified": metadata.get("eventChainVerified", False),
+            "mechanicalEvidenceIds": metadata.get("mechanicalEvidenceIds", []),
             "changedFiles": changed_files,
             "diffSummary": metadata.get("diffSummary", ""),
             "gitDiff": metadata.get("diff", ""),
@@ -1358,7 +1519,11 @@ class MissionService:
             "risks": [
                 {
                     "level": mission["risk_level"],
-                    "description": "controlled code modification in a fixture-only workspace",
+                    "description": (
+                        "controlled code modification governed by OSA Execution Force RuntimeV2"
+                        if mission["backend"] == OSA_EXECUTION_FORCE_BACKEND_ID
+                        else "controlled code modification in a fixture-only workspace"
+                    ),
                     "productionImpact": False,
                 }
             ],
@@ -1372,6 +1537,14 @@ class MissionService:
             raise ConflictError("APR evidence requires a commit-bound rollback plan")
         if not changed_files:
             raise ConflictError("APR evidence requires a recorded git diff")
+        if mission["backend"] == OSA_EXECUTION_FORCE_BACKEND_ID and (
+            not bundle["runtimeV2MissionId"]
+            or not bundle["runtimeV2ExecutionId"]
+            or not bundle["runtimeV2ResolvedSkills"]
+            or not bundle["runtimeV2EventChainVerified"]
+            or len(bundle["mechanicalEvidenceIds"]) < 2
+        ):
+            raise ConflictError("APR evidence requires complete RuntimeV2 proof identity")
         return bundle
 
     def _ensure_session(self, mission: dict[str, Any]):
