@@ -1,5 +1,9 @@
 # Hydra Hermes Lab
 
+<div align="center">
+  <img src="assets/hydra.png" alt="Hydra" width="400" />
+</div>
+
 GitHub-first operational control repository for running Hermes inside an NVIDIA NemoClaw/OpenShell sandbox on a dedicated Contabo VPS.
 
 ## Status
