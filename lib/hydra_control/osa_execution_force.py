@@ -102,11 +102,21 @@ class RuntimeV2HttpTransport:
             or not parsed.netloc
         ):
             raise BackendError("invalid OSA Execution Force base URL")
-        if not api_key:
-            raise BackendError(f"{API_KEY_ENV} is required; execution is UNAVAILABLE")
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
+
+    @property
+    def authenticated(self) -> bool:
+        """Whether this transport can cross the protected RuntimeV2 boundary.
+
+        Construction is intentionally allowed without the key so Hydra can
+        reopen durable control-plane state and record an exact-SHA Zgredek
+        approval while execution access is unavailable.  Every execution
+        method still fails closed before worker dispatch.
+        """
+
+        return bool(self.api_key)
 
     def request(
         self,
@@ -116,6 +126,8 @@ class RuntimeV2HttpTransport:
         *,
         correlation_id: str = "",
     ) -> dict[str, Any]:
+        if path != "/health" and not self.authenticated:
+            raise BackendError(f"{API_KEY_ENV} is required; execution is UNAVAILABLE")
         body = None
         headers = {
             "Accept": "application/json",
@@ -179,6 +191,11 @@ class OsaExecutionForceBackend:
         return cls(RuntimeV2HttpTransport(url, key), artifact_root)
 
     def create_session(self, input: CreateSessionInput) -> ExecutionSession:
+        if (
+            isinstance(self.transport, RuntimeV2HttpTransport)
+            and not self.transport.authenticated
+        ):
+            raise BackendError(f"{API_KEY_ENV} is required; execution is UNAVAILABLE")
         if not SAFE_SEGMENT.fullmatch(input.mission_id):
             raise BackendError("invalid Hydra mission correlation ID")
         with self._lock:
@@ -215,6 +232,11 @@ class OsaExecutionForceBackend:
 
     def availability(self) -> tuple[str, str]:
         """Probe the live boundary; configuration alone is never ONLINE."""
+        if (
+            isinstance(self.transport, RuntimeV2HttpTransport)
+            and not self.transport.authenticated
+        ):
+            return "UNAVAILABLE", f"{API_KEY_ENV} is required; execution is UNAVAILABLE"
         try:
             health = self.transport.request("GET", "/health")
         except BackendError as error:

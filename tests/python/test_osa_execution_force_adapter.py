@@ -23,6 +23,7 @@ from hydra_control.models import (  # noqa: E402
 )
 from hydra_control.osa_execution_force import (  # noqa: E402
     OsaExecutionForceBackend,
+    RuntimeV2HttpTransport,
 )
 from hydra_control.service import MissionService  # noqa: E402
 from hydra_control.store import ControlPlaneStore  # noqa: E402
@@ -224,6 +225,25 @@ class OsaExecutionForceAdapterCase(unittest.TestCase):
             with self.assertRaises(BackendError) as caught:
                 OsaExecutionForceBackend.from_environment(self.tmp.name)
         self.assertIn("UNAVAILABLE", str(caught.exception))
+
+    @mock.patch.dict(
+        os.environ,
+        {"HYDRA_OSA_EXECUTION_FORCE_URL": "https://runtime.example"},
+        clear=False,
+    )
+    def test_missing_key_allows_state_open_but_refuses_dispatch(self) -> None:
+        os.environ.pop("OSA_ACTIONS_API_KEY", None)
+        backend = OsaExecutionForceBackend.from_environment(self.tmp.name)
+        self.assertIsInstance(backend.transport, RuntimeV2HttpTransport)
+        self.assertEqual(backend.availability()[0], "UNAVAILABLE")
+        with self.assertRaisesRegex(BackendError, "execution is UNAVAILABLE"):
+            backend.create_session(
+                CreateSessionInput(
+                    mission_id=self.mission_id,
+                    repository="github://HazEOskA/osa-agent-e2e-fixture",
+                    branch="main",
+                )
+            )
 
     def test_run_uses_the_official_v2_schema_and_preserves_correlation(self) -> None:
         backend, transport = self._backend(_blocked_snapshot())
@@ -439,6 +459,46 @@ class OsaExecutionForceServiceCase(unittest.TestCase):
                     "worker": "osa-execution-force",
                 }
             )
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "HYDRA_EXECUTION_BACKEND": "osa-execution-force",
+            "HYDRA_OSA_EXECUTION_FORCE_URL": "https://runtime.example",
+            "OSA_ACTIONS_API_KEY": "test-token",
+        },
+        clear=False,
+    )
+    def test_context_approval_persists_without_runtime_key(self) -> None:
+        mission = self.service.create_mission(
+            {
+                "title": "Fixture change",
+                "request": "Change src/app.py",
+                "repository": "github://HazEOskA/osa-agent-e2e-fixture",
+                "baseCommit": BASE_SHA,
+                "allowedScope": ["src/app.py"],
+                "testCommand": ["pytest", "-q"],
+                "backend": "osa-execution-force",
+            }
+        )
+        packet = self.service.context_packet(mission["mission_id"])["packet"]
+        os.environ.pop("OSA_ACTIONS_API_KEY", None)
+
+        reopened = MissionService.configured(self.tmp.name)
+        try:
+            approval = reopened.approve_context_packet(
+                mission["mission_id"],
+                actor="OSA",
+                packet_sha256=packet["sha256"],
+            )
+            self.assertTrue(approval["approved"])
+            self.assertTrue(
+                reopened.context_packet(mission["mission_id"])["approval"]["approved"]
+            )
+            with self.assertRaisesRegex(BackendError, "execution is UNAVAILABLE"):
+                reopened.start(mission["mission_id"], actor="OSA", asynchronous=False)
+        finally:
+            reopened.store.close()
 
 
 if __name__ == "__main__":
