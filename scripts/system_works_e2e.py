@@ -3,8 +3,9 @@
 
 This is an operator entry point, not another runtime.  It opens Hydra's durable
 state, records the already-authorized exact Zgredek packet SHA, retrieves the
-existing OSA API key from Google Secret Manager using a cached Cloud SDK
-account, and drives only the existing Hydra approval gates.
+existing OSA API key from Google Secret Manager using an already-available
+Cloud SDK, Application Default, or metadata-server credential, and drives only
+the existing Hydra approval gates.
 
 It deliberately never invokes ``gcloud auth login``.  Missing or expired
 cached credentials are reported as BLOCKED without terminating the caller's
@@ -14,6 +15,8 @@ interactive shell and without losing the persisted context approval.
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
 import os
 import re
@@ -22,6 +25,9 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Sequence
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +43,12 @@ DEFAULT_RUNTIME_URL = "https://osa-execution-force-api-bmnzqzarxa-ew.a.run.app"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 MISSION_ID_PATTERN = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+PROJECT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{4,62}$")
+SECRET_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,255}$")
+METADATA_TOKEN_URL = (
+    "http://metadata.google.internal/computeMetadata/v1/instance/"
+    "service-accounts/default/token"
 )
 TERMINAL_STATES = {
     MissionState.COMPLETED,
@@ -54,13 +66,16 @@ def _gcloud(arguments: Sequence[str]) -> subprocess.CompletedProcess[str]:
     executable = shutil.which("gcloud")
     if executable is None:
         raise EntryPointBlocked("gcloud is unavailable; no login was attempted")
-    return subprocess.run(
-        [executable, *arguments],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
+    try:
+        return subprocess.run(
+            [executable, *arguments],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise EntryPointBlocked("gcloud credential lookup timed out") from error
 
 
 def cached_gcloud_accounts() -> list[str]:
@@ -102,6 +117,117 @@ def secret_from_cached_account(*, project: str, secret: str) -> tuple[str, str]:
             return value, account
     raise EntryPointBlocked(
         f"cached gcloud accounts cannot access secret {secret}; no login was attempted"
+    )
+
+
+def application_default_token() -> str:
+    """Return an existing ADC token; never start an authorization flow."""
+
+    try:
+        result = _gcloud(["auth", "application-default", "print-access-token"])
+    except EntryPointBlocked:
+        return ""
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def metadata_access_token() -> str:
+    """Return the ambient VM service-account token when one is attached."""
+
+    request = Request(METADATA_TOKEN_URL, headers={"Metadata-Flavor": "Google"})
+    try:
+        with urlopen(request, timeout=3) as response:
+            payload = json.loads(response.read(65537).decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, UnicodeError):
+        return ""
+    token = payload.get("access_token") if isinstance(payload, dict) else None
+    return token.strip() if isinstance(token, str) else ""
+
+
+def secret_from_access_token(*, token: str, project: str, secret: str) -> str:
+    """Read Secret Manager through REST without exposing the bearer token."""
+
+    if not token:
+        raise EntryPointBlocked("empty ambient access token")
+    if not PROJECT_PATTERN.fullmatch(project):
+        raise EntryPointBlocked("invalid Google Cloud project identifier")
+    if not SECRET_PATTERN.fullmatch(secret):
+        raise EntryPointBlocked("invalid Secret Manager secret identifier")
+    endpoint = (
+        "https://secretmanager.googleapis.com/v1/projects/"
+        f"{quote(project, safe='')}/secrets/{quote(secret, safe='')}/"
+        "versions/latest:access"
+    )
+    request = Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=15) as response:
+            body = response.read(1048577)
+        if len(body) > 1048576:
+            raise EntryPointBlocked("Secret Manager response exceeded size limit")
+        document = json.loads(body.decode("utf-8"))
+        encoded = document["payload"]["data"]
+        value = base64.b64decode(encoded, validate=True).decode("utf-8").strip()
+    except EntryPointBlocked:
+        raise
+    except (
+        HTTPError,
+        URLError,
+        TimeoutError,
+        KeyError,
+        TypeError,
+        json.JSONDecodeError,
+        UnicodeError,
+        binascii.Error,
+    ) as error:
+        raise EntryPointBlocked("ambient credential cannot access Secret Manager") from error
+    if not value:
+        raise EntryPointBlocked("Secret Manager returned an empty secret")
+    return value
+
+
+def secret_from_ambient_credentials(*, project: str, secret: str) -> tuple[str, str]:
+    """Try every non-interactive credential already present in Cloud Shell."""
+
+    try:
+        return secret_from_cached_account(project=project, secret=secret)
+    except EntryPointBlocked:
+        pass
+
+    adc_token = application_default_token()
+    if adc_token:
+        try:
+            return (
+                secret_from_access_token(
+                    token=adc_token,
+                    project=project,
+                    secret=secret,
+                ),
+                "application-default",
+            )
+        except EntryPointBlocked:
+            pass
+
+    metadata_token = metadata_access_token()
+    if metadata_token:
+        try:
+            return (
+                secret_from_access_token(
+                    token=metadata_token,
+                    project=project,
+                    secret=secret,
+                ),
+                "metadata-default-service-account",
+            )
+        except EntryPointBlocked:
+            pass
+
+    raise EntryPointBlocked(
+        "no cached, Application Default, or metadata credential can access "
+        "Secret Manager; no login was attempted"
     )
 
 
@@ -236,7 +362,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             mission_id=args.mission_id,
             packet_sha256=args.packet_sha256,
         )
-        key, account = secret_from_cached_account(
+        key, account = secret_from_ambient_credentials(
             project=args.project,
             secret=args.secret,
         )

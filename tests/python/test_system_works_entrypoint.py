@@ -58,8 +58,8 @@ class SystemWorksEntryPointCase(unittest.TestCase):
                 ) as approve,
                 mock.patch.object(
                     ENTRYPOINT,
-                    "secret_from_cached_account",
-                    side_effect=ENTRYPOINT.EntryPointBlocked("no cached account"),
+                    "secret_from_ambient_credentials",
+                    side_effect=ENTRYPOINT.EntryPointBlocked("no ambient credential"),
                 ),
                 contextlib.redirect_stdout(output),
             ):
@@ -80,7 +80,61 @@ class SystemWorksEntryPointCase(unittest.TestCase):
         self.assertEqual(payload["systemWorks"], "BLOCKED")
         self.assertTrue(payload["contextApprovalPersisted"])
         self.assertFalse(payload["workerDispatched"])
-        self.assertIn("no cached account", payload["reason"])
+        self.assertIn("no ambient credential", payload["reason"])
+
+    def test_ambient_credentials_fall_back_to_application_default(self) -> None:
+        with (
+            mock.patch.object(
+                ENTRYPOINT,
+                "secret_from_cached_account",
+                side_effect=ENTRYPOINT.EntryPointBlocked("no cached account"),
+            ),
+            mock.patch.object(
+                ENTRYPOINT, "application_default_token", return_value="adc-token"
+            ),
+            mock.patch.object(
+                ENTRYPOINT, "metadata_access_token", return_value="metadata-token"
+            ) as metadata,
+            mock.patch.object(
+                ENTRYPOINT, "secret_from_access_token", return_value="secret-value"
+            ) as access,
+        ):
+            value, identity = ENTRYPOINT.secret_from_ambient_credentials(
+                project="valid-project", secret="valid-secret"
+            )
+
+        self.assertEqual((value, identity), ("secret-value", "application-default"))
+        access.assert_called_once_with(
+            token="adc-token", project="valid-project", secret="valid-secret"
+        )
+        metadata.assert_not_called()
+
+    def test_ambient_credentials_fall_back_to_metadata_service_account(self) -> None:
+        with (
+            mock.patch.object(
+                ENTRYPOINT,
+                "secret_from_cached_account",
+                side_effect=ENTRYPOINT.EntryPointBlocked("no cached account"),
+            ),
+            mock.patch.object(ENTRYPOINT, "application_default_token", return_value=""),
+            mock.patch.object(
+                ENTRYPOINT, "metadata_access_token", return_value="metadata-token"
+            ),
+            mock.patch.object(
+                ENTRYPOINT, "secret_from_access_token", return_value="secret-value"
+            ) as access,
+        ):
+            value, identity = ENTRYPOINT.secret_from_ambient_credentials(
+                project="valid-project", secret="valid-secret"
+            )
+
+        self.assertEqual(
+            (value, identity),
+            ("secret-value", "metadata-default-service-account"),
+        )
+        access.assert_called_once_with(
+            token="metadata-token", project="valid-project", secret="valid-secret"
+        )
 
 
 if __name__ == "__main__":
