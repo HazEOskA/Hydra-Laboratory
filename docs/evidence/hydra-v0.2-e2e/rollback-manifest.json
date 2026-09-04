@@ -1,0 +1,21 @@
+{
+  "available": true,
+  "rollbackPlan": {
+    "baseCommit": "ff23548849023380c9df246c8a70383e978212b3",
+    "branch": "hydra/mission-2b7eefa6",
+    "changedFiles": [
+      "app.py"
+    ],
+    "productionImpact": false,
+    "resultCommit": "291474fbb8a02af8aed0ba521566193dbcc0bb19",
+    "steps": [
+      "Zatrzymaj lokalny proces Hydry (control plane).",
+      "W workspace misji wykonaj: git reset --hard ff23548849023380c9df246c8a70383e978212b3",
+      "Zweryfikuj, że HEAD == ff23548849023380c9df246c8a70383e978212b3.",
+      "Usuń wyłącznie dedykowany katalog stanu tej misji.",
+      "Nie dotykaj współdzielonego state rootu Hermesa ani produkcji."
+    ],
+    "strategy": "git-revert-to-base-commit",
+    "verified": true
+  }
+}
