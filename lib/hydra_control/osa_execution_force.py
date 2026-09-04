@@ -43,6 +43,7 @@ API_KEY_ENV = "OSA_ACTIONS_API_KEY"
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+GITHUB_SLUG = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 BLOCKED_STATES = frozenset(
     {
         "BLOCKED",
@@ -89,7 +90,7 @@ class JsonTransport(Protocol):
 class RuntimeV2HttpTransport:
     """Dependency-free authenticated transport for the official API v2."""
 
-    def __init__(self, base_url: str, api_key: str, timeout_seconds: int = 30) -> None:
+    def __init__(self, base_url: str, api_key: str, timeout_seconds: int = 900) -> None:
         parsed = urlparse(base_url)
         loopback = parsed.hostname in {"127.0.0.1", "::1", "localhost"}
         if parsed.scheme != "https" and not (parsed.scheme == "http" and loopback):
@@ -420,8 +421,14 @@ class OsaExecutionForceBackend:
         if runtime_id != self._runtime_ids.get(input.session_id, runtime_id):
             raise BackendError("RuntimeV2 mission correlation changed")
         self._runtime_ids[input.session_id] = runtime_id
-        self._snapshots[input.session_id] = snapshot
         self._persist_correlation(input.session_id, runtime_id)
+        if str(snapshot.get("state", "")).upper() == "HOST_ACTION_REQUIRED":
+            snapshot = self._execute_authorized_host_action(
+                snapshot,
+                runtime_id=runtime_id,
+                correlation_id=input.mission_id,
+            )
+        self._snapshots[input.session_id] = snapshot
         artifact = self._artifact(
             session,
             input.node_id,
@@ -538,7 +545,7 @@ class OsaExecutionForceBackend:
                         "timeout_seconds"
                     ],
                 },
-                "repository": manifest["repository"],
+                "repository": self._runtime_repository(manifest["repository"]),
                 "branch": manifest["branch"],
                 "commit_sha": manifest["base_commit"],
                 "budget": (
@@ -551,6 +558,46 @@ class OsaExecutionForceBackend:
             "requested_operation": None,
             "approvals": [],
         }
+
+    def _execute_authorized_host_action(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        runtime_id: str,
+        correlation_id: str,
+    ) -> dict[str, Any]:
+        request = self._host_action_request(snapshot)
+        if not isinstance(request, dict) or not request.get("action_id"):
+            raise BackendError("RuntimeV2 HOST_ACTION_REQUIRED has no bound action_id")
+        version = snapshot.get("mission_version")
+        execution_id = self._execution_id(snapshot)
+        if isinstance(version, bool) or not isinstance(version, int) or not execution_id:
+            raise BackendError("RuntimeV2 host action snapshot identity is incomplete")
+        resumed = self._snapshot(
+            self.transport.request(
+                "POST",
+                f"/api/v2/missions/{runtime_id}/execute-host-action",
+                {
+                    "expected_action_id": str(request["action_id"]),
+                    "expected_mission_version": version,
+                    "expected_execution_id": execution_id,
+                },
+                correlation_id=correlation_id,
+            )
+        )
+        if self._mission_id(resumed) != runtime_id:
+            raise BackendError("RuntimeV2 mission correlation changed after host action")
+        return resumed
+
+    @staticmethod
+    def _runtime_repository(repository: Any) -> str:
+        value = str(repository).strip()
+        if not value.startswith("github://"):
+            return value
+        slug = value.removeprefix("github://").removesuffix(".git")
+        if not GITHUB_SLUG.fullmatch(slug):
+            raise BackendError("invalid github:// repository identifier")
+        return slug
 
     def _validate_manifest(
         self,

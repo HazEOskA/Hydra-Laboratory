@@ -55,6 +55,25 @@ class FakeTransport:
         return self.snapshot
 
 
+class SequencedTransport(FakeTransport):
+    def __init__(self, snapshots: list[dict]) -> None:
+        super().__init__(snapshots[-1])
+        self.snapshots = iter(snapshots)
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        payload: dict | None = None,
+        *,
+        correlation_id: str = "",
+    ) -> dict:
+        self.calls.append((method, path, payload, correlation_id))
+        if path == "/health":
+            return {"status": "ok"}
+        return next(self.snapshots)
+
+
 def _event(state: str = "COMPLETED") -> dict:
     body = {
         "mission_id": RUNTIME_ID,
@@ -259,6 +278,10 @@ class OsaExecutionForceAdapterCase(unittest.TestCase):
             {"task", "goal", "context", "environment", "requested_operation", "approvals"},
         )
         self.assertEqual(payload["context"]["commit_sha"], BASE_SHA)
+        self.assertEqual(
+            payload["context"]["repository"],
+            "HazEOskA/osa-agent-e2e-fixture",
+        )
         self.assertEqual(payload["context"]["budget"]["maximum_cost"], 2.0)
         self.assertEqual(
             payload["context"]["known_facts"]["hydra.mission_id"], self.mission_id
@@ -270,6 +293,83 @@ class OsaExecutionForceAdapterCase(unittest.TestCase):
             ["src/app.py"],
         )
         self.assertEqual(result.metadata["hostActionRequest"]["action_id"], "host-action-1")
+        worker = next(
+            call
+            for call in transport.calls
+            if call[1] == f"/api/v2/missions/{RUNTIME_ID}/execute-host-action"
+        )
+        self.assertEqual(
+            worker[2],
+            {
+                "expected_action_id": "host-action-1",
+                "expected_mission_version": 1,
+                "expected_execution_id": EXECUTION_ID,
+            },
+        )
+        self.assertEqual(worker[3], self.mission_id)
+
+    def test_host_worker_boundary_can_return_verified_completion(self) -> None:
+        transport = SequencedTransport([_blocked_snapshot(), _completed_snapshot()])
+        backend = OsaExecutionForceBackend(transport, self.tmp.name)
+        backend.create_session(
+            CreateSessionInput(
+                mission_id=self.mission_id,
+                repository="github://HazEOskA/osa-agent-e2e-fixture",
+                branch=f"hydra/mission-{self.mission_id[:8]}",
+            )
+        )
+
+        result = backend.execute_task(self._input())
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.metadata["runtimeMissionId"], RUNTIME_ID)
+        self.assertEqual(result.metadata["baseCommit"], BASE_SHA)
+        self.assertEqual(result.metadata["resultCommit"], RESULT_SHA)
+        paths = [path for _, path, _, _ in transport.calls]
+        self.assertEqual(paths[1:], [
+            "/api/v2/missions/run",
+            f"/api/v2/missions/{RUNTIME_ID}/execute-host-action",
+        ])
+
+    def test_host_worker_boundary_refuses_incomplete_identity(self) -> None:
+        snapshot = _blocked_snapshot()
+        snapshot["mission_version"] = True
+        backend, _ = self._backend(snapshot)
+        result = backend.execute_task(self._input())
+        self.assertFalse(result.success)
+        self.assertIn("identity is incomplete", result.metadata["detail"])
+
+    def test_host_worker_boundary_refuses_missing_action(self) -> None:
+        snapshot = _blocked_snapshot()
+        snapshot["context"]["pending_host_action"] = None
+        backend, _ = self._backend(snapshot)
+        result = backend.execute_task(self._input())
+        self.assertFalse(result.success)
+        self.assertIn("no bound action_id", result.metadata["detail"])
+
+    def test_host_worker_boundary_refuses_correlation_drift(self) -> None:
+        drifted = _completed_snapshot()
+        drifted["context"] = dict(drifted["context"], mission_id="runtime-drift")
+        transport = SequencedTransport([_blocked_snapshot(), drifted])
+        backend = OsaExecutionForceBackend(transport, self.tmp.name)
+        backend.create_session(
+            CreateSessionInput(
+                mission_id=self.mission_id,
+                repository="github://HazEOskA/osa-agent-e2e-fixture",
+                branch="main",
+            )
+        )
+        result = backend.execute_task(self._input())
+        self.assertFalse(result.success)
+        self.assertIn("correlation changed", result.metadata["detail"])
+
+    def test_repository_translation_rejects_invalid_github_identifier(self) -> None:
+        with self.assertRaisesRegex(BackendError, "invalid github"):
+            OsaExecutionForceBackend._runtime_repository("github://owner/repo/extra")
+        self.assertEqual(
+            OsaExecutionForceBackend._runtime_repository("https://github.com/owner/repo"),
+            "https://github.com/owner/repo",
+        )
 
     def test_claimed_evidence_cannot_complete(self) -> None:
         backend, _ = self._backend(_completed_snapshot(authority="CLAIMED"))
