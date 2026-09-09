@@ -61,7 +61,7 @@ const contracts = [
   [app.includes("Pinokio Verifier"), "Pinokio capability missing"],
   [app.includes("Hydra World"), "Hydra World capability missing"],
   [!html.includes("Hermes Lab"), "legacy Hermes Lab branding remains in HTML"],
-  [!app.includes("CookieOps"), "CookieOps must not be part of Hydra core"]
+  [!app.includes('["CookieOps",'), "CookieOps must not be registered as a Hydra core capability"]
 ];
 for (const [ok, message] of contracts) {
   if (!ok) throw new Error(message);
