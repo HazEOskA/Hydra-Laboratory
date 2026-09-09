@@ -6,8 +6,7 @@
     <meta name="color-scheme" content="dark">
     <meta name="theme-color" content="#08090c">
     <link rel="icon" href="data:,">
-    <link rel="preload" href="/assets/brand/hydra-wordmark.webp" as="image" type="image/webp">
-    <title>HYDRA — Hermes Lab Command Center</title>
+    <title>HYDRA LABORATORY — Command Center</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -19,8 +18,11 @@
 
     <div id="app" class="app-shell">
       <aside id="sidebar" class="sidebar" aria-label="Primary navigation">
-        <a class="brand" href="#michael-angelo" aria-label="HYDRA Hermes Lab home">
-          <img src="/assets/brand/hydra-wordmark.webp" width="222" height="76" alt="HYDRA Hermes Lab">
+        <a class="brand" href="#hydra-core" aria-label="HYDRA LABORATORY home">
+          <span class="brand-copy">
+            <strong class="brand-wordmark">HYDRA</strong>
+            <small class="brand-subtitle">LABORATORY</small>
+          </span>
         </a>
         <nav id="primary-nav" class="primary-nav"></nav>
         <section class="sidebar-oracle" aria-labelledby="sidebar-oracle-title">
@@ -43,7 +45,7 @@
         <header class="system-header">
           <button id="menu-button" class="icon-button menu-button" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation">☰</button>
           <div class="route-heading">
-            <p class="micro-label">HYDRA / HERMES LAB</p>
+            <p class="micro-label">HYDRA LABORATORY</p>
             <h1 id="route-title">Michael Angelo</h1>
           </div>
           <div id="header-metrics" class="header-metrics" aria-label="System summary"></div>
@@ -64,7 +66,7 @@
         <div class="dialog-sigil" aria-hidden="true">!</div>
         <p class="micro-label danger-text">CRITICAL OPERATOR ACTION</p>
         <h2 id="emergency-title">Cancel all cancellable local missions?</h2>
-        <p>This calls the existing mission cancellation endpoint for each active local mission. It does not stop Hermes, a VPS, or any production runtime.</p>
+        <p>This calls the existing mission cancellation endpoint for each active local mission. It does not stop a VPS, GCP service, or any production runtime.</p>
         <div id="emergency-scope" class="dialog-scope"></div>
         <div class="dialog-actions">
           <button value="cancel" class="secondary-button">Keep running</button>

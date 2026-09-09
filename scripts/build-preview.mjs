@@ -36,7 +36,7 @@ const [html, app, css, config] = await Promise.all([
 execFileSync(process.execPath, ["--check", resolve(web, "app.js")], { stdio: "inherit" });
 
 const nav = [
-  "Dashboard", "Policies AI", "Michael Angelo", "Missions", "Agent Fleet",
+  "Dashboard", "Hydra Core", "Policies AI", "Michael Angelo", "Missions", "Agent Fleet",
   "Repositories", "Sandboxes", "Approvals", "APR Evidence", "Artifacts",
   "Infrastructure", "Audit Log", "Settings"
 ];
@@ -53,7 +53,15 @@ const contracts = [
   [!app.includes("innerHTML"), "unsafe innerHTML detected"],
   [config.includes("apiEnabled: false"), "Vercel preview must default to API disconnected"],
   [css.includes("--gold:"), "gold design token missing"],
-  [css.includes("--purple:"), "purple design token missing"]
+  [css.includes("--purple:"), "purple design token missing"],
+  [html.includes("HYDRA LABORATORY"), "Hydra Laboratory branding missing"],
+  [app.includes("Gate Zero"), "Gate Zero capability missing"],
+  [app.includes("Brain / Source of Truth"), "Brain capability missing"],
+  [app.includes("Execution Force / RuntimeV2"), "RuntimeV2 capability missing"],
+  [app.includes("Pinokio Verifier"), "Pinokio capability missing"],
+  [app.includes("Hydra World"), "Hydra World capability missing"],
+  [!html.includes("Hermes Lab"), "legacy Hermes Lab branding remains in HTML"],
+  [!app.includes("CookieOps"), "CookieOps must not be part of Hydra core"]
 ];
 for (const [ok, message] of contracts) {
   if (!ok) throw new Error(message);

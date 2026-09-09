@@ -8,6 +8,7 @@ const HYDRA_CONFIG = Object.freeze({
 
 const NAV_ITEMS = [
   ["dashboard", "Dashboard", "◇"],
+  ["hydra-core", "Hydra Core", "♜"],
   ["policies-ai", "Policies AI", "⚖"],
   ["michael-angelo", "Michael Angelo", "Ψ"],
   ["missions", "Missions", "⌬"],
@@ -23,6 +24,71 @@ const NAV_ITEMS = [
 ];
 
 const ROUTE_TITLES = Object.fromEntries(NAV_ITEMS.map(([id, label]) => [id, label]));
+
+const HYDRA_CAPABILITY_GROUPS = [
+  {
+    group: "AUTHORITY & TRUTH",
+    features: [
+      ["Gate Zero", "ROOT OF TRUST", "CANONICAL LOCK", "Local-only cryptographic authority for privileged Control-Plane and infrastructure state transitions. It is intentionally outside the transactional data path."],
+      ["Brain / Source of Truth", "SYSTEM MEMORY", "KNOWN CAPABILITY", "Cross-project truth for context, repo/runtime state, architecture, constraints, evidence, protocols, missions, execution history and relationships."],
+      ["Zgredek", "DRIFT + UNDERSTANDING GATE", "RECOVERED", "Guards intent quality, drift and ambiguity. PASS / ASK_USER / BLOCKED before a mission is allowed to become executable."],
+      ["Mission Genesis", "INTENT CONTRACT", "RECOVERED", "Compiles goal, scope, constraints, forbidden actions and required evidence into the mission contract."],
+      ["God Layer", "POLICY CONTROL", "KNOWN CAPABILITY", "Constitutional control plane: permission classification, policy, state transitions and mission authority."],
+      ["SOUL Constitution", "SYSTEM CONSTITUTION", "RECOVERED", "Operational constitution and invariant surface used to constrain automated action."],
+      ["Hyperlock / Approvals", "HUMAN AUTHORITY", "RECOVERED", "Scoped approvals and GREEN / YELLOW / RED boundaries for actions that must not execute autonomously."],
+      ["Co-Founder / Policies AI", "STRATEGIC GOVERNANCE", "RECOVERED UI", "Recovered strategy/governance surface. No live strategy endpoint is claimed in this preview."],
+    ],
+  },
+  {
+    group: "ORCHESTRATION",
+    features: [
+      ["Missions", "MISSION CONTROL", "RECOVERED", "Mission lifecycle, state, scope and execution context."],
+      ["Queue / Logistics", "DURABLE SCHEDULING", "RECOVERED", "Priorities, dependencies, retries, dead letters, idempotency and dispatch."],
+      ["Worker Leases", "EXECUTION OWNERSHIP", "RECOVERED", "Bounded worker ownership with heartbeat, expiry, budgets and checkpoint references."],
+      ["Handoff Relay", "WORK TRANSFER", "RECOVERED", "Explicit lease handoff between workers instead of invisible context switching."],
+      ["Skrzynka / Buzz", "AGENT COMMUNICATION", "RECOVERED", "Mission rooms, participants, role-attributed messages, operator intent and system events."],
+      ["Operator CLI", "OPERATOR SURFACE", "RECOVERED", "Command-line operator surface for controlled inspection and actions."],
+    ],
+  },
+  {
+    group: "EXECUTION",
+    features: [
+      ["Michael Angelo", "PRIMARY BUILDER", "RECOVERED UI", "Primary architect/builder surface. Live chat/runtime remains disabled until a reviewed endpoint is wired."],
+      ["Minions / Agent Fleet", "SPECIALIST WORKERS", "RECOVERED", "Capability-aware worker fleet and execution backends."],
+      ["Execution Force / RuntimeV2", "EXECUTION ENGINE", "ESTABLISHED SYSTEM", "Runtime execution layer and skill system used for real controlled work."],
+      ["OSA Agent", "BOUNTY / TASK AGENT", "ESTABLISHED SYSTEM", "Separate bounty agent for finding, executing, submitting and proving work."],
+      ["Repo Closer OSA", "CLOSURE ENGINE", "ESTABLISHED SYSTEM", "Dedicated closure system for finishing repositories and producing closure evidence."],
+      ["Maintenance Engine", "HEALTH + REPAIR", "ESTABLISHED SYSTEM", "Health, repair, stale-state recovery and upkeep."],
+      ["Model Router", "CAPABILITY ROUTING", "RECOVERED", "Provider/model selection by capability, health and explicit block/degrade reasons."],
+      ["Sandbox / Tool Gateway", "EXECUTION BOUNDARY", "RECOVERED", "Bounded execution surface; browser does not receive unrestricted shell or host paths."],
+    ],
+  },
+  {
+    group: "PROOF & RECOVERY",
+    features: [
+      ["Pinokio Verifier", "MECHANICAL VERIFICATION", "RECOVERED", "Checks build, test, deploy, health and security claims against mechanical evidence."],
+      ["APR", "INDEPENDENT PROOF", "RECOVERED", "Independent evidence layer separating completion claims from verifiable proof."],
+      ["Notary / Hash Ledger", "IMMUTABLE HISTORY", "RECOVERED", "Hash-chained mission transitions, evidence references and sealing."],
+      ["Artifact Registry", "OUTPUT EVIDENCE", "RECOVERED", "Artifact identity, SHA-bound output and evidence references."],
+      ["Recovery / Rollback", "RESILIENCE", "RECOVERED", "Checkpoint recovery, rollback, logs and controlled repair workflows."],
+      ["Evidence Bundles", "PORTABLE PROOF", "KNOWN CAPABILITY", "Sanitized bundles that package checks, artifacts and exact-source references."],
+    ],
+  },
+  {
+    group: "WORLD, PLATFORM & BUSINESS",
+    features: [
+      ["Hydra World", "PERSISTENT WORLD", "ESTABLISHED SYSTEM", "Persistent world/state layer and event-driven simulation surface."],
+      ["Observatory", "SYSTEM VISIBILITY", "ESTABLISHED SYSTEM", "Operator observation layer for world/runtime state and control-plane visibility."],
+      ["GCP / VPS Registry", "INFRASTRUCTURE", "KNOWN CAPABILITY", "Service, revision, host and deployment inventory; live state must be independently revalidated."],
+      ["NeurOSA", "SHARED BRAIN", "ESTABLISHED SYSTEM", "Shared cognition/knowledge layer across agents and systems."],
+      ["OSA Cloud Workspace", "WORKSPACE", "ESTABLISHED SYSTEM", "Cloud workspace surface for operator-accessible work and system interaction."],
+      ["Portfel & Budżety", "FINANCIAL CONTROL", "RECOVERED", "Recovered budget/revenue ledger surface. No blockchain wallet or payment execution is claimed."],
+      ["Revenue Ops", "LEADS → AUDIT → DRAFT", "RECOVERED", "Lead intake, scoring, mini-audits, outreach drafts, follow-ups and separated forecast/realised values."],
+      ["Agent Mail / Outreach Gate", "EXTERNAL COMMUNICATION", "RECOVERED CONTRACT", "Drafting may be automated; external send remains approval-gated and must never be fabricated as sent."],
+    ],
+  },
+];
+
 const TERMINAL_STATES = new Set(["COMPLETED", "CANCELLED"]);
 const ACTIVE_STATES = new Set([
   "QUEUED", "FACT_LOADING", "PLANNING", "PROVISIONING", "RUNNING",
@@ -392,10 +458,79 @@ function renderMetricCard(label, value, detail, tone = "unknown") {
   return card;
 }
 
+
+function renderHydraCore() {
+  const view = el("div", "view hydra-core-view");
+  view.append(pageIntro(
+    "FOUR MONTHS · ONE SYSTEM",
+    "HYDRA LABORATORY",
+    "The value is not a repository count. Hydra Laboratory is the composition of authority, orchestration, execution, proof, recovery, world state and operator control into one auditable system.",
+    statusLabel("CLAIM ≠ PROOF")
+  ));
+
+  const gate = el("section", "panel");
+  const gateBody = el("div");
+  append(
+    gateBody,
+    microLabel("GATE ZERO v1.2 · INVARIANT 22"),
+    el("h2", null, "The right to change the system is protected before execution begins."),
+    el("p", "muted-copy", "Gate Zero is an offline/local Root of Trust for privileged Control-Plane authority and infrastructure state transitions. It is not placed in the transactional data path."),
+    dataField("Chain", "Offline Root of Trust → Capability Binding → Policy/Scope → Safety/Risk → Immutable Execution → External Evidence"),
+    dataField("Default", "DENY BY DEFAULT"),
+    dataField("Capability", "SHORT-LIVED · ACTION-SCOPED"),
+    dataField("Binding", "INTENT · NONCE · REPLAY · SEQUENCE · DEVICE · SESSION"),
+    dataField("Preview connection", "NOT LIVE CONNECTED")
+  );
+  gate.append(el("header", "panel-header", null), el("div", "panel-body"));
+  gate.querySelector(".panel-header").append(el("div", "panel-heading", null));
+  gate.querySelector(".panel-heading").append(el("span", "panel-index", "00"), el("h2", "panel-title", "Gate Zero / Key to the Gates"));
+  gate.querySelector(".panel-body").append(gateBody);
+  view.append(gate);
+
+  for (const group of HYDRA_CAPABILITY_GROUPS) {
+    const section = el("section", "hydra-capability-section");
+    append(section, microLabel(group.group), el("div", "module-grid"));
+    const grid = section.lastChild;
+    for (const [name, layer, status, description] of group.features) {
+      const body = el("div", "governance-module");
+      append(
+        body,
+        statusLabel(status),
+        dataField("Layer", layer),
+        el("p", "muted-copy", description)
+      );
+      grid.append(panel(name, body));
+    }
+    view.append(section);
+  }
+
+  const excluded = el("div");
+  append(
+    excluded,
+    statusLabel("EXCLUDED FROM CORE"),
+    el("p", "muted-copy", "CookieOps is not a Hydra core component. It may only return as a separate MemeCoin Agent if it gains a real learning loop, wallet adapter, risk policy, paper-trading proof, transaction controls and immutable trade evidence."),
+    dataField("External Runtime", "OPTIONAL / EXTERNAL · NOT HYDRA IDENTITY"),
+    dataField("Product", "HYDRA LABORATORY")
+  );
+  view.append(panel("Boundary lock", excluded, { index: "∞" }));
+  return view;
+}
+
 function renderDashboard() {
   const view = el("div", "view dashboard-view");
-  view.append(pageIntro("AUTONOMOUS ENGINEERING OPERATIONS", "HYDRA Command Center", "Real local mission orchestration with explicit integration boundaries. Unknown data remains unknown.", statusLabel(state.health?.status === "ok" ? "CONTROL PLANE ONLINE" : "CONTROL PLANE OFFLINE")));
+  view.append(pageIntro("FOUR MONTHS · ONE SYSTEM", "HYDRA LABORATORY", "Authority, orchestration, execution, proof and world state composed into one control system. Unknown data remains unknown.", statusLabel(state.health?.status === "ok" ? "CONTROL PLANE ONLINE" : "CONTROL PLANE OFFLINE")));
   const grid = el("div", "dashboard-grid");
+
+  const coreBody = el("div");
+  append(
+    coreBody,
+    statusLabel("ONE SYSTEM"),
+    el("h3", null, "4 months of engineering → one Hydra Laboratory"),
+    el("p", "muted-copy", "Gate Zero, Brain, Zgredek, God Layer, missions, logistics, workers, RuntimeV2, APR, Notary, Buzz, budgets, infrastructure, recovery, Hydra World and the wider OSA execution stack."),
+    button("Open Hydra Core", "primary-button full-width", () => navigate("hydra-core"))
+  );
+  grid.append(panel("Hydra Core", coreBody, { className: "dash-overview", index: "00" }));
+
 
   const overview = el("div", "metric-grid");
   append(overview,
@@ -877,7 +1012,7 @@ function renderSettings() {
   append(runtime, dataField("Serving mode", "LOOPBACK HTTP"), dataField("Polling", "4 SECONDS"), dataField("Static assets", "LOCAL ONLY"), dataField("CSP", "SELF ONLY"), dataField("Actor", "OSA"));
   grid.append(panel("Runtime", runtime));
   const locks = el("div");
-  append(locks, dataField("Architecture", "MINION CONTROL PLANE v0.1"), dataField("Design", "HYDRA UI v0.1"), dataField("Production deployment", "NOT AUTHORIZED"), dataField("Hermes runtime changes", "OUT OF SCOPE"));
+  append(locks, dataField("Architecture", "MINION CONTROL PLANE v0.1"), dataField("Design", "HYDRA UI v0.1"), dataField("Production deployment", "NOT AUTHORIZED"), dataField("External runtime changes", "OUT OF SCOPE"));
   grid.append(panel("Locks", locks));
   append(view, grid);
   return view;
@@ -886,6 +1021,7 @@ function renderSettings() {
 function renderRoute() {
   switch (state.route) {
     case "dashboard": return renderDashboard();
+    case "hydra-core": return renderHydraCore();
     case "policies-ai": return renderPoliciesAi();
     case "michael-angelo": return renderMichaelAngelo();
     case "missions": return renderMissions();
