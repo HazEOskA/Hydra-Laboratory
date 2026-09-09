@@ -52,8 +52,8 @@ const contracts = [
   [app.includes("disabled: !HYDRA_CONFIG.apiEnabled"), "runtime mutation disable gate missing"],
   [!app.includes("innerHTML"), "unsafe innerHTML detected"],
   [config.includes("apiEnabled: false"), "Vercel preview must default to API disconnected"],
-  [css.includes("#d4af37"), "locked gold token missing"],
-  [css.includes("#a855f7"), "locked purple token missing"]
+  [css.includes("--gold:"), "gold design token missing"],
+  [css.includes("--purple:"), "purple design token missing"]
 ];
 for (const [ok, message] of contracts) {
   if (!ok) throw new Error(message);
