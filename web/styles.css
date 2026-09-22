@@ -44,8 +44,12 @@ h1, h2, h3, p { margin-top: 0; }
 
 .app-shell { position: relative; z-index: 1; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100vh; }
 .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 40; width: var(--sidebar); display: flex; flex-direction: column; border-right: 1px solid #332718; background: rgba(4, 7, 10, .97); box-shadow: 20px 0 70px rgba(0,0,0,.3); }
-.brand { min-height: 72px; display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #241e17; }
-.brand img { width: 178px; height: auto; display: block; object-fit: contain; }
+.brand { min-height: 72px; display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #241e17; text-decoration: none; }
+.brand-mark-clip { width: 48px; height: 48px; overflow: hidden; flex: 0 0 48px; display: block; }
+.brand-mark-clip img { width: 178px; height: auto; display: block; object-fit: contain; transform: translate(-2px, -1px); }
+.brand-copy { min-width: 0; display: grid; gap: 1px; line-height: 1; }
+.brand-copy strong { color: #f4ead6; font-size: 20px; letter-spacing: .16em; font-weight: 700; }
+.brand-copy small { color: #b69558; font-size: 9px; letter-spacing: .28em; font-weight: 700; }
 .primary-nav { padding: 10px 9px 14px; display: grid; gap: 2px; overflow-y: auto; scrollbar-width: thin; }
 .nav-link { min-height: 39px; display: grid; grid-template-columns: 27px 1fr auto; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid transparent; border-radius: 4px; color: #c7c6c5; text-decoration: none; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; transition: .18s ease; }
 .nav-link:hover { color: #fff; border-color: #44311d; background: rgba(212,164,55,.04); }

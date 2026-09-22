@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# Variables in this sourced library are consumed by sibling operator scripts.
+# shellcheck disable=SC2034
 # Shared guards for the operator bundle. Sourced, never executed directly.
 #
 # Every operator script runs on exactly one host as exactly one user, writes

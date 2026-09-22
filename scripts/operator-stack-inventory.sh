@@ -108,7 +108,11 @@ printf -- '\n-- health probes --\n'
 probe() {
   local name="$1" url="$2"
   local code; code="$(curl -fsS --max-time 8 -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || echo none)"
-  [[ "$code" == "200" ]] && found "$name" "HTTP $code" || absent "$name" "HTTP $code at $url"
+  if [[ "$code" == "200" ]]; then
+    found "$name" "HTTP $code"
+  else
+    absent "$name" "HTTP $code at $url"
+  fi
 }
 probe "hermes-api /health"   "http://127.0.0.1:8642/health"
 probe "ma-core-api /health"  "http://127.0.0.1:18101/health"
@@ -123,7 +127,7 @@ printf '    core-api healthcheck asserts status=="ok"; the frontend has\n'
 printf '    depends_on: core-api service_healthy, so the preview cannot come up\n'
 printf '    while the Hermes sandbox is down.\n'
 printf '\n  The canonical compose starts core-api and frontend only. It does NOT\n'
-printf '  start `michael-angelo daemon`, so restoring it as-is keeps Hydra the\n'
+printf '  start %s, so restoring it as-is keeps Hydra the\n' "\`michael-angelo daemon\`"
 printf '  single top-level scheduler.\n'
 printf '\n  evidence: %s\n' "$RUN_DIR"
 [[ $missing -eq 0 ]]
