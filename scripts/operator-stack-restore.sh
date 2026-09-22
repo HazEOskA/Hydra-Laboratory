@@ -15,7 +15,6 @@ source "$HERE/operator-lib.sh"
 CANON_REPO="https://github.com/HazEOskA/Da-Vinci-Agent-the-Ideal-"
 CANON_BRANCH="deploy/vps-michael-angelo-v0.2"
 CANON_SHA="${MICHAEL_ANGELO_SHA:-4eddbff}"
-ZGREDEK_BRANCH="feature/zgredek-runtime-v0.1"
 ZGREDEK_SHA="${ZGREDEK_SHA:-be879fc}"
 
 MA_ROOT="${MICHAEL_ANGELO_ROOT:-/opt/hydra/apps/michael-angelo-v0.2}"
