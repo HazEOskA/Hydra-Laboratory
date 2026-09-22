@@ -32,7 +32,7 @@ capture host.txt sh -c 'cat /proc/loadavg'
 {
   printf '### %s :: zombie processes\n' "$(utc)"
   ps -eo pid,ppid,stat,comm --no-headers | awk '$3 ~ /^Z/ {print}' || true
-  printf 'zombie_count=%s\n' "$(ps -eo stat --no-headers | grep -c '^Z' || true)"
+  printf 'zombie_count=%s\n' "$(ps -eo stat= | awk '$1 ~ /^Z/ {count++} END {print count+0}')"
 } >>"$RUN_DIR/host.txt"
 
 # -- systemd ---------------------------------------------------------------
@@ -112,7 +112,7 @@ REPO_PATHS=(
   printf -- '-- sandbox --\n'
   grep -E '"phase"|"failureLayer"|"found"' "$RUN_DIR/nemo.txt" 2>/dev/null | head -10 || printf '(no phase field captured)\n'
   printf -- '\n-- container --\n'
-  cat "$RUN_DIR/docker-state.txt" 2>/dev/null | grep -v '^###' | grep -v '^$' || printf '(container not identified)\n'
+  grep -Ev '^(###|$)' "$RUN_DIR/docker-state.txt" 2>/dev/null || printf '(container not identified)\n'
   printf -- '\n-- listeners of interest --\n'
   grep -E ':(4000|8080|8642|18789|8787)\b' "$RUN_DIR/ports.txt" 2>/dev/null | head -12 || printf '(none)\n'
   printf -- '\n-- units --\n'
