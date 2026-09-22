@@ -91,7 +91,7 @@ got="$(NEMOCLAW_CONFIG_CANDIDATES="$TMP/g/.nemoclaw $canon" nemoclaw_config_dir 
 check "unsafe candidate refuses, not skips"  REFUSED "$got"
 
 # The default probe order is still the operator one when nothing is injected.
-got="$(NEMOCLAW_CONFIG_CANDIDATES= NEMOCLAW_HOME="$canon" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
+got="$(NEMOCLAW_CONFIG_CANDIDATES='' NEMOCLAW_HOME="$canon" nemoclaw_config_dir 2>/dev/null || echo REFUSED)"
 check "NEMOCLAW_HOME honoured by default"    "$canon" "$got"
 
 echo
