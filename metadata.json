@@ -1,8 +1,0 @@
-{
-  "name": "Hydra Hermes Lab",
-  "description": "Hydra City God-Layer operational control plane: Gateway understanding gate, Government hyperlock, Work Cell lease runner, Pinokio mechanical verifier, Notary APR hash-chained ledger, and GCP Cloud Run preview.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
