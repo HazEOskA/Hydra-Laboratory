@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  FolderGit2,
-  CheckCircle2,
-  Clock,
-  Lock,
-  FileCheck,
-  Shield,
-  Layers,
-  ArrowRight,
-  Sparkles,
-  RefreshCw,
   AlertTriangle,
-  Flame,
-  Check,
+  CheckCircle2,
+  Database,
+  FileCheck,
+  FolderGit2,
+  Play,
+  RefreshCw,
+  Server,
+  Sparkles,
 } from 'lucide-react';
 import { Mission, MissionState } from '../types';
+import {
+  ControlPlaneSnapshot,
+  createLiveMission,
+  fetchControlPlaneSnapshot,
+  HYDRA_API_BASE,
+  runNextLiveTask,
+} from '../api/controlPlane';
 
 interface MissionsViewProps {
   missions: Mission[];
@@ -22,17 +25,73 @@ interface MissionsViewProps {
   onNavigate: (tab: any) => void;
 }
 
+type BackendState = 'checking' | 'live' | 'offline';
+
 export const MissionsView: React.FC<MissionsViewProps> = ({
   missions,
   onAdvanceMissionState,
   onNavigate,
 }) => {
-  const [selectedMissionId, setSelectedMissionId] = useState<string>(
-    missions[0]?.mission_id || 'M-2048'
-  );
+  void onAdvanceMissionState;
+
+  const [backendState, setBackendState] = useState<BackendState>('checking');
+  const [snapshot, setSnapshot] = useState<ControlPlaneSnapshot | null>(null);
+  const [selectedMissionId, setSelectedMissionId] = useState<string>(missions[0]?.mission_id || '');
+  const [newMissionTitle, setNewMissionTitle] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const refreshLive = useCallback(async () => {
+    setError('');
+    try {
+      const next = await fetchControlPlaneSnapshot();
+      setSnapshot(next);
+      setBackendState('live');
+    } catch (err: any) {
+      setBackendState('offline');
+      setError(err?.message || 'Backend API niedostępne');
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshLive();
+  }, [refreshLive]);
+
+  const displayMissions = backendState === 'live' && snapshot ? snapshot.missions : missions;
+
+  useEffect(() => {
+    if (!displayMissions.length) {
+      setSelectedMissionId('');
+      return;
+    }
+    if (!displayMissions.some((mission) => mission.mission_id === selectedMissionId)) {
+      setSelectedMissionId(displayMissions[0].mission_id);
+    }
+  }, [displayMissions, selectedMissionId]);
 
   const selectedMission =
-    missions.find((m) => m.mission_id === selectedMissionId) || missions[0];
+    displayMissions.find((mission) => mission.mission_id === selectedMissionId) ||
+    displayMissions[0];
+
+  const selectedEvents = useMemo(() => {
+    if (!snapshot || !selectedMission) return [];
+    return snapshot.events
+      .filter((event) => event.mission_id === selectedMission.mission_id)
+      .slice()
+      .reverse();
+  }, [snapshot, selectedMission]);
+
+  const selectedTasks = useMemo(() => {
+    if (!snapshot || !selectedMission) return [];
+    return snapshot.tasks.filter((task) => task.mission_id === selectedMission.mission_id);
+  }, [snapshot, selectedMission]);
+
+  const evidenceRefs = useMemo(() => {
+    const refs = new Set<string>();
+    selectedEvents.forEach((event) => event.evidence_refs.forEach((ref) => refs.add(ref)));
+    selectedTasks.forEach((task) => task.evidence_refs.forEach((ref) => refs.add(ref)));
+    return Array.from(refs);
+  }, [selectedEvents, selectedTasks]);
 
   const stateFlow: MissionState[] = [
     'CREATED',
@@ -43,246 +102,298 @@ export const MissionsView: React.FC<MissionsViewProps> = ({
     'RUNNING',
     'VALIDATING',
     'COMPLETED',
-    'CLOSED',
   ];
+
+  const createMission = async () => {
+    const title = newMissionTitle.trim();
+    if (!title) return;
+    setBusy(true);
+    setError('');
+    try {
+      const next = await createLiveMission(title);
+      setSnapshot(next);
+      setBackendState('live');
+      setNewMissionTitle('');
+      if (next.missions[0]) setSelectedMissionId(next.missions[0].mission_id);
+    } catch (err: any) {
+      setError(err?.message || 'Nie udało się utworzyć misji');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runNext = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const next = await runNextLiveTask();
+      setSnapshot(next);
+      setBackendState('live');
+    } catch (err: any) {
+      setError(err?.message || 'Nie udało się uruchomić taska');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const statusClass =
+    backendState === 'live'
+      ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-300'
+      : backendState === 'offline'
+      ? 'border-rose-500/40 bg-rose-950/30 text-rose-300'
+      : 'border-amber-500/40 bg-amber-950/30 text-amber-300';
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#030712] via-[#090e24] to-[#030712] border border-amber-500/30 rounded-2xl p-6 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+          <div className="space-y-2">
             <div className="flex items-center gap-2.5">
               <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30">
                 <FolderGit2 className="w-5 h-5" />
               </span>
               <h2 className="text-lg font-bold font-mono text-amber-100 uppercase tracking-wider">
-                PROJEKTY & MISJE (GENESIS CONTRACT MATRIX)
+                MISJE — LIVE CONTROL PLANE SLICE
               </h2>
             </div>
             <p className="text-xs font-mono text-slate-300 max-w-3xl leading-relaxed">
-              Każda misja w Hydra City posiada niezmienny <strong className="text-amber-300">Genesis Contract</strong>,
-              punkt odniesienia zablokowany w <strong className="text-purple-300">Notariuszu</strong>, przypisany{' '}
-              <strong className="text-amber-200">Work Cell / Lease</strong> i wymaga twardych dowodów (
-              <span className="text-emerald-300 font-semibold">Pinokio Gate</span>) przed zatwierdzeniem stanu COMPLETED/CLOSED.
+              Ten ekran ma jeden obowiązek: pokazać prawdziwy przepływ
+              OSA → Understanding Gate → Michael Angelo → Worker → Pinokio → Evidence.
+              Pozostałe zakładki kokpitu nadal mogą zawierać stan demonstracyjny.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 font-mono text-xs">
-            <button
-              onClick={() => onNavigate('gateway')}
-              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-black font-bold rounded-xl shadow-md transition cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Nowa Misja via Zgredek</span>
-            </button>
+          <div className={'rounded-xl border px-3 py-2 font-mono text-xs ' + statusClass}>
+            <div className="flex items-center gap-2 font-bold">
+              <Server className="w-4 h-4" />
+              {backendState === 'live'
+                ? 'LIVE BACKEND'
+                : backendState === 'offline'
+                ? 'DEMO FALLBACK'
+                : 'SPRAWDZAM BACKEND'}
+            </div>
+            <div className="mt-1 text-[10px] opacity-80">{HYDRA_API_BASE}</div>
           </div>
         </div>
+
+        {backendState === 'offline' && (
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-950/20 p-3 text-xs font-mono text-rose-200">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              Backend API nie odpowiada. UI nie oznacza danych jako LIVE i pokazuje wyłącznie fallback demonstracyjny.
+              {error && <div className="mt-1 text-rose-300">Błąd: {error}</div>}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Main Grid: Mission List (Left) + Selected Mission Detail (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left 4 cols: Mission List */}
-        <div className="lg:col-span-4 space-y-3">
-          <div className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider px-1 flex items-center justify-between">
-            <span>Rejestr Misji ({missions.length})</span>
-            <span className="text-[10px] text-slate-400 font-normal">Genesis Hash-Locked</span>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className="xl:col-span-4 space-y-4">
+          <div className="rounded-2xl border border-slate-800 bg-[#05091a] p-4 space-y-3">
+            <div className="text-xs font-mono font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Nowa prawdziwa misja
+            </div>
+            <textarea
+              value={newMissionTitle}
+              onChange={(event) => setNewMissionTitle(event.target.value)}
+              disabled={backendState !== 'live' || busy}
+              placeholder="Np. Sprawdź integralność Hydra Control Plane"
+              className="w-full min-h-24 rounded-xl border border-slate-700 bg-black/40 p-3 text-xs font-mono text-slate-100 outline-none focus:border-amber-500/60 disabled:opacity-50"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={createMission}
+                disabled={backendState !== 'live' || busy || !newMissionTitle.trim()}
+                className="rounded-xl bg-amber-500 px-3 py-2 text-xs font-mono font-bold text-black disabled:opacity-40"
+              >
+                Utwórz misję
+              </button>
+              <button
+                onClick={runNext}
+                disabled={backendState !== 'live' || busy}
+                className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-3 py-2 text-xs font-mono font-bold text-emerald-300 disabled:opacity-40 flex items-center justify-center gap-1.5"
+              >
+                <Play className="w-3.5 h-3.5" />
+                RUN NEXT
+              </button>
+            </div>
+            <button
+              onClick={refreshLive}
+              disabled={busy}
+              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-mono text-slate-300 flex items-center justify-center gap-2"
+            >
+              <RefreshCw className={'w-3.5 h-3.5 ' + (busy ? 'animate-spin' : '')} />
+              Odśwież snapshot
+            </button>
+            {error && backendState === 'live' && (
+              <div className="text-[11px] font-mono text-rose-300">{error}</div>
+            )}
           </div>
 
           <div className="space-y-2.5">
-            {missions.map((m) => {
-              const isSelected = m.mission_id === selectedMissionId;
+            <div className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider px-1">
+              Rejestr misji ({displayMissions.length})
+            </div>
+            {displayMissions.map((mission) => {
+              const selected = mission.mission_id === selectedMissionId;
               return (
-                <div
-                  key={m.mission_id}
-                  onClick={() => setSelectedMissionId(m.mission_id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer font-mono ${
-                    isSelected
+                <button
+                  key={mission.mission_id}
+                  onClick={() => setSelectedMissionId(mission.mission_id)}
+                  className={
+                    'w-full text-left p-4 rounded-2xl border transition font-mono ' +
+                    (selected
                       ? 'bg-[#060b22] border-amber-500/60 shadow-lg shadow-amber-500/10'
-                      : 'bg-[#05091a]/80 hover:bg-[#05091a] border-slate-800/80 hover:border-amber-500/30'
-                  }`}
+                      : 'bg-[#05091a]/80 border-slate-800/80 hover:border-amber-500/30')
+                  }
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-200">{m.mission_id}</span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                        m.state === 'RUNNING'
-                          ? 'bg-amber-950/80 text-amber-300 border border-amber-500/40'
-                          : m.state === 'CLOSED' || m.state === 'COMPLETED'
-                          ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
-                          : 'bg-purple-950/80 text-purple-300 border border-purple-500/40'
-                      }`}
-                    >
-                      {m.state}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-amber-200">{mission.mission_id}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
+                      {mission.state}
                     </span>
                   </div>
-
-                  <div className="text-xs font-bold text-slate-200 mt-2 truncate">{m.title}</div>
-
-                  <div className="text-[10px] text-slate-400 mt-2 flex items-center justify-between pt-2 border-t border-slate-800/60">
-                    <span className="truncate">Worker: {m.assigned_worker || 'Michael Angelo'}</span>
-                    <span className="text-slate-500">{m.created_at.slice(0, 10)}</span>
-                  </div>
-                </div>
+                  <div className="text-xs font-bold text-slate-200 mt-2 line-clamp-2">{mission.title}</div>
+                  <div className="text-[10px] text-slate-500 mt-2">{mission.updated_at}</div>
+                </button>
               );
             })}
           </div>
         </div>
 
-        {/* Right 8 cols: Selected Mission Detail */}
-        <div className="lg:col-span-8 space-y-6">
-          {selectedMission && (
-            <div className="bg-[#05091a] border border-amber-500/20 rounded-2xl p-6 shadow-md font-mono space-y-6">
-              {/* Mission Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-bold text-amber-100">{selectedMission.title}</h3>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
-                      {selectedMission.mission_id}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
-                    <span>Otwarta: {selectedMission.created_at}</span>
-                    <span>&bull;</span>
-                    <span>Notary Entry: <strong className="text-purple-300">{selectedMission.notary_entry_id || 'NOTARY-M2048'}</strong></span>
-                    <span>&bull;</span>
-                    <span>Buzz Room: <strong className="text-amber-300">{selectedMission.buzz_room_id || 'ROOM-M2048'}</strong></span>
-                  </div>
-                </div>
+        <div className="xl:col-span-8 space-y-5">
+          {snapshot && backendState === 'live' && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Metric label="Chain" value={snapshot.chain.ok ? 'VERIFIED' : 'BROKEN'} />
+              <Metric label="Queued" value={String(snapshot.queue_stats.QUEUED || 0)} />
+              <Metric label="Running" value={String(snapshot.queue_stats.RUNNING || 0)} />
+              <Metric label="Completed" value={String(snapshot.queue_stats.COMPLETED || 0)} />
+            </div>
+          )}
 
-                <div className="flex items-center gap-2">
-                  {selectedMission.apr_seal && (
-                    <span className="text-xs px-3 py-1 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-bold flex items-center gap-1.5 shadow-sm">
-                      <Shield className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{selectedMission.apr_seal}</span>
-                    </span>
-                  )}
+          {selectedMission ? (
+            <div className="rounded-2xl border border-amber-500/20 bg-[#05091a] p-6 shadow-md font-mono space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div>
+                  <div className="text-base font-bold text-amber-100">{selectedMission.title}</div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    {selectedMission.mission_id} · {selectedMission.state}
+                  </div>
                 </div>
+                <button
+                  onClick={() => onNavigate('ledger')}
+                  className="rounded-xl border border-purple-500/30 bg-purple-950/30 px-3 py-2 text-xs text-purple-200"
+                >
+                  Otwórz Ledger
+                </button>
               </div>
 
-              {/* State Machine Transition Flow */}
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Stan Maszyny Stanowej (Hydra City Lifecycle)</span>
-                </span>
-
-                <div className="flex items-center gap-1 overflow-x-auto py-2 scrollbar-thin">
-                  {stateFlow.map((st, index) => {
-                    const isCurrent = selectedMission.state === st;
-                    const isPassed = stateFlow.indexOf(selectedMission.state) > index;
+              <div>
+                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                  Lifecycle
+                </div>
+                <div className="flex gap-1 overflow-x-auto pb-2">
+                  {stateFlow.map((state, index) => {
+                    const currentIndex = stateFlow.indexOf(selectedMission.state);
+                    const passed = currentIndex > index;
+                    const current = selectedMission.state === state;
                     return (
-                      <React.Fragment key={st}>
-                        <div
-                          className={`px-2.5 py-1.5 rounded-lg text-[10px] font-mono whitespace-nowrap font-semibold border ${
-                            isCurrent
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-md shadow-amber-500/10'
-                              : isPassed
-                              ? 'bg-emerald-950/40 text-emerald-400 border-emerald-700/40'
-                              : 'bg-black/30 text-slate-500 border-slate-800'
-                          }`}
-                        >
-                          {st}
-                        </div>
-                        {index < stateFlow.length - 1 && (
-                          <span className={`text-xs ${isPassed ? 'text-emerald-500' : 'text-slate-700'}`}>
-                            &rarr;
-                          </span>
-                        )}
-                      </React.Fragment>
+                      <div
+                        key={state}
+                        className={
+                          'shrink-0 px-2.5 py-1.5 rounded-lg text-[10px] border ' +
+                          (current
+                            ? 'border-amber-500/60 bg-amber-500/20 text-amber-300'
+                            : passed
+                            ? 'border-emerald-700/40 bg-emerald-950/30 text-emerald-400'
+                            : 'border-slate-800 bg-black/30 text-slate-500')
+                        }
+                      >
+                        {state}
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Genesis Contract Constraints & Scope */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div className="bg-black/50 border border-slate-800 rounded-xl p-4 space-y-2">
-                  <span className="text-amber-400 font-bold flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5" /> Genesis Constraints
-                  </span>
-                  <ul className="space-y-1 text-slate-300 text-[11px]">
-                    {selectedMission.constraints?.map((c, i) => (
-                      <li key={i} className="flex items-start gap-1.5">
-                        <span className="text-amber-400">•</span>
-                        <span>{c}</span>
-                      </li>
-                    )) || (
-                      <li>Brak dodatkowych ograniczeń.</li>
-                    )}
-                  </ul>
-                </div>
-
-                <div className="bg-black/50 border border-slate-800 rounded-xl p-4 space-y-2">
-                  <span className="text-rose-400 font-bold flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5" /> Genesis Forbidden
-                  </span>
-                  <ul className="space-y-1 text-slate-300 text-[11px]">
-                    {selectedMission.forbidden?.map((f, i) => (
-                      <li key={i} className="flex items-start gap-1.5">
-                        <span className="text-rose-400">✕</span>
-                        <span>{f}</span>
-                      </li>
-                    )) || (
-                      <li>Brak specyficznych zakazów.</li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-
-              {/* Required Evidence Items (Pinokio Gate) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-                    <FileCheck className="w-4 h-4 text-emerald-400" />
-                    <span>Weryfikacja Dowodów (Pinokio Checklist)</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400">Mechanicznie sprawdzane &bull; zero fake claims</span>
-                </div>
-
-                <div className="space-y-2">
-                  {selectedMission.required_evidence?.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="flex items-center justify-between bg-black/40 border border-slate-800/80 rounded-xl p-3 text-xs"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <div>
-                          <div className="font-bold text-slate-200">{ev.name}</div>
-                          {ev.proof && (
-                            <div className="text-[10px] text-slate-400 truncate max-w-lg">
-                              Proof: <span className="text-amber-300/90">{ev.proof}</span>
-                            </div>
-                          )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-slate-800 bg-black/30 p-4">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-300 mb-3">
+                    <Database className="w-4 h-4" />
+                    Backend tasks
+                  </div>
+                  <div className="space-y-2">
+                    {selectedTasks.length ? (
+                      selectedTasks.map((task) => (
+                        <div key={task.task_id} className="rounded-lg border border-slate-800 p-2.5 text-[11px]">
+                          <div className="flex justify-between gap-2">
+                            <span className="text-slate-200">{task.task_id}</span>
+                            <span className="text-emerald-300">{task.status}</span>
+                          </div>
+                          <div className="text-slate-500 mt-1">{task.type} · {task.permission}</div>
                         </div>
-                      </div>
+                      ))
+                    ) : (
+                      <div className="text-[11px] text-slate-500">Brak tasków dla tej misji.</div>
+                    )}
+                  </div>
+                </div>
 
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-700/50">
-                        {ev.status}
-                      </span>
-                    </div>
-                  ))}
+                <div className="rounded-xl border border-slate-800 bg-black/30 p-4">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-300 mb-3">
+                    <FileCheck className="w-4 h-4" />
+                    Evidence
+                  </div>
+                  <div className="space-y-2">
+                    {evidenceRefs.length ? (
+                      evidenceRefs.map((ref) => (
+                        <div key={ref} className="rounded-lg border border-emerald-800/40 bg-emerald-950/20 p-2.5 text-[10px] text-emerald-200 break-all">
+                          <div className="flex items-center gap-1.5 font-bold mb-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            MECHANICALLY VERIFIED
+                          </div>
+                          {ref}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-[11px] text-slate-500">Evidence pojawi się dopiero po VERIFY.</div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Action Toolbar */}
-              <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
-                <button
-                  onClick={() => onNavigate('buzz')}
-                  className="px-4 py-2 bg-purple-950/80 hover:bg-purple-900 border border-purple-600/40 text-purple-200 text-xs rounded-xl transition cursor-pointer font-semibold"
-                >
-                  Otwórz Pokój Buzz (M-2048)
-                </button>
-
-                <button
-                  onClick={() => onNavigate('ledger')}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-amber-500/30 text-amber-200 text-xs rounded-xl transition cursor-pointer font-semibold"
-                >
-                  Dziennik Notariusza & Hash Ledger
-                </button>
+              <div>
+                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
+                  Ledger events
+                </div>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {selectedEvents.length ? (
+                    selectedEvents.map((event) => (
+                      <div key={String(event.seq) + event.event_hash} className="rounded-xl border border-slate-800 bg-black/30 p-3 text-[11px]">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-bold text-amber-200">{event.actor}</span>
+                          <span className="text-slate-500">{event.to_state}</span>
+                        </div>
+                        <div className="mt-1 text-slate-300">{event.reason}</div>
+                        <div className="mt-1 text-[10px] text-slate-600">{event.timestamp}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-[11px] text-slate-500">Brak live events.</div>
+                  )}
+                </div>
               </div>
+
+              {snapshot && backendState === 'live' && (
+                <div className="rounded-xl border border-slate-800 bg-black/30 p-3 text-[10px] text-slate-500">
+                  Source of truth: {snapshot.source_of_truth.missions} · {snapshot.chain.detail}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-800 bg-[#05091a] p-8 text-center text-sm text-slate-500">
+              Brak misji.
             </div>
           )}
         </div>
@@ -290,3 +401,10 @@ export const MissionsView: React.FC<MissionsViewProps> = ({
     </div>
   );
 };
+
+const Metric: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="rounded-xl border border-slate-800 bg-[#05091a] p-3 font-mono">
+    <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+    <div className="mt-1 text-sm font-bold text-slate-200">{value}</div>
+  </div>
+);
