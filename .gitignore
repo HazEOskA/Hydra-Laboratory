@@ -27,5 +27,11 @@ worker-state/
 *.db-wal
 *.db-shm
 evidence/
+# Narrow exception: curated evidence under docs/ is hand-reviewed, sanitized and
+# pinned to a commit before it lands. Runtime-generated bundles (written to
+# $BASE_PATH/evidence by scripts/evidence-bundle.sh) stay excluded by the rule
+# above, because they carry host baselines.
+!docs/evidence/
+!docs/evidence/**
 recovery/
 backups/

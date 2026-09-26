@@ -1,0 +1,802 @@
+{
+  "bundleSha256": "abc606b5efd047118d3245246f98c062b517154dbd311c75364eb7641c5c654f",
+  "capture": {
+    "capturedAt": "2026-08-03T03:06:17Z",
+    "driver": "browser UI (Chromium via Playwright), operator intake form",
+    "git": "2.43.0",
+    "os": "Linux 6.18.5",
+    "python": "3.11.15",
+    "transport": "loopback HTTP, 127.0.0.1"
+  },
+  "evidence": {
+    "available": true,
+    "bundle": {
+      "acceptanceCriteria": [
+        {
+          "criterion": "Helper jest deterministyczny",
+          "status": "PASS",
+          "verifiedBy": "independent-review"
+        },
+        {
+          "criterion": "API bez zmian",
+          "status": "PASS",
+          "verifiedBy": "independent-review"
+        }
+      ],
+      "artifacts": [
+        {
+          "artifactId": "924413ff-686a-4d39-996b-9960a8c0146b",
+          "kind": "mission-manifest",
+          "name": "mission-manifest.json",
+          "nodeId": "mission-intake",
+          "sha256": "9cb5e75e46436e3737b9bfa004274355cc4280c1fa0b431a4e6a5704fcbbc462",
+          "size": 3785
+        },
+        {
+          "artifactId": "0ddd0978-8b86-49cb-b167-75c7cc8289a4",
+          "kind": "repository-facts",
+          "name": "repository-facts.json",
+          "nodeId": "repository-fact-load",
+          "sha256": "5c109529f3be5befc8df4e86c009dfdbeccc5b235d3eabc8f2120658724d4b3d",
+          "size": 853
+        },
+        {
+          "artifactId": "4bc711a4-6546-4ebb-aff3-d944f84ec75c",
+          "kind": "analysis",
+          "name": "feasibility.json",
+          "nodeId": "feasibility-analysis",
+          "sha256": "a64ae8e211889227d8daffb439840cfdf1ac66679eefef3840c40462ca1c55d5",
+          "size": 312
+        },
+        {
+          "artifactId": "8a98e9e9-396a-4d79-b67b-6ce91ea67a24",
+          "kind": "plan",
+          "name": "implementation-plan.json",
+          "nodeId": "implementation-plan",
+          "sha256": "0401632f2cdeb506a01ac541b41c0ca213bd954cf224e281aeea4853224c66ed",
+          "size": 310
+        },
+        {
+          "artifactId": "1f71943c-c3d7-4c45-9d92-9e69bb99e309",
+          "kind": "command-stdout",
+          "name": "command-01-stdout.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "aa8d5368e0311a93e32145bcdb5afaf437ab094e5be6b8268ba2d1593e322fea",
+          "size": 192
+        },
+        {
+          "artifactId": "6441610a-b8b1-46ea-8571-6033f292bee9",
+          "kind": "command-stderr",
+          "name": "command-01-stderr.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "7588f3ae-72c9-49ae-ad56-c2f16a4f7c1c",
+          "kind": "command-stdout",
+          "name": "command-02-stdout.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "8b640ee0-b78e-4efc-8df0-a47140287fa8",
+          "kind": "command-stderr",
+          "name": "command-02-stderr.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "7081c315-7147-4eb5-be5a-1ea82e06885f",
+          "kind": "command-stdout",
+          "name": "command-03-stdout.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "d771a3ee-e382-4f44-bb6b-beab5ea0a971",
+          "kind": "command-stderr",
+          "name": "command-03-stderr.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "361131a8-d03b-409d-9ef3-6d45571c7b9d",
+          "kind": "command-stdout",
+          "name": "command-04-stdout.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "748406a6-d600-40ff-8385-2c6c4becbb5f",
+          "kind": "command-stderr",
+          "name": "command-04-stderr.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "20122a49-b801-4eb1-a809-721239e431d9",
+          "kind": "command-stdout",
+          "name": "command-05-stdout.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "5331c5ab-39c4-4d9c-88cc-975dedad5af5",
+          "kind": "command-stderr",
+          "name": "command-05-stderr.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "2c827457-95ad-473e-8012-1508e3cac52d",
+          "kind": "command-stdout",
+          "name": "command-06-stdout.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "4509d82ea62d86413eee7a8df8882fd2032b398aa71aa1aafff32255d2342fce",
+          "size": 260
+        },
+        {
+          "artifactId": "751be406-41fe-485b-ab98-c0a13e5f4684",
+          "kind": "command-stderr",
+          "name": "command-06-stderr.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "2665eb95-ee6f-4042-9d07-5eaa11b5cb81",
+          "kind": "command-stdout",
+          "name": "command-07-stdout.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "f72b37d0659c2ff329c225d233080354b39f73d1b08bc8949ab5f28fdb4cbd04",
+          "size": 41
+        },
+        {
+          "artifactId": "08e16510-8422-4b9f-9acb-f3011ac25a12",
+          "kind": "command-stderr",
+          "name": "command-07-stderr.txt",
+          "nodeId": "sandbox-provisioning",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "33cfa845-0eac-40a4-9a60-b3a04d6d5e73",
+          "kind": "change-summary",
+          "name": "controlled-change.json",
+          "nodeId": "agent-execution",
+          "sha256": "67b6554216f0c9bcba052317de7836d4cef7b8928b250fc6565d5067bf2b07a1",
+          "size": 183
+        },
+        {
+          "artifactId": "96ac7254-452d-4bc8-adf8-0ec193388d7d",
+          "kind": "command-stdout",
+          "name": "command-01-stdout.txt",
+          "nodeId": "agent-execution",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "a6b59fb1-7268-44e2-8558-847ce18eca27",
+          "kind": "command-stderr",
+          "name": "command-01-stderr.txt",
+          "nodeId": "agent-execution",
+          "sha256": "5cf53d4ed0f22971ff8e0d515200ce72a816d68237a8a70fb6fe1d22f6d030c7",
+          "size": 50
+        },
+        {
+          "artifactId": "10b94276-47a1-499c-9371-96d348ea9395",
+          "kind": "command-stdout",
+          "name": "command-02-stdout.txt",
+          "nodeId": "agent-execution",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "78d577f9-033d-4af6-9143-a08b678470e5",
+          "kind": "command-stderr",
+          "name": "command-02-stderr.txt",
+          "nodeId": "agent-execution",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "6b4e562f-891a-42e9-a852-72a4e4bf170a",
+          "kind": "command-stdout",
+          "name": "command-03-stdout.txt",
+          "nodeId": "agent-execution",
+          "sha256": "9662781214f2e186725fab1aad967fccbf4a433650706806b0f468642cce72b9",
+          "size": 105
+        },
+        {
+          "artifactId": "3c02814c-6c51-4ac9-8ec3-c5fe14b49987",
+          "kind": "command-stderr",
+          "name": "command-03-stderr.txt",
+          "nodeId": "agent-execution",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "0e462475-1a27-4e3c-b3db-ad47e336e398",
+          "kind": "command-stdout",
+          "name": "command-04-stdout.txt",
+          "nodeId": "agent-execution",
+          "sha256": "96552dd45a54670cb4ba68d01e84e0eb52a1ee167f6b3b7fd337aba5e93dbfeb",
+          "size": 41
+        },
+        {
+          "artifactId": "10d9741f-26e9-4413-a44d-de69a2c84a57",
+          "kind": "command-stderr",
+          "name": "command-04-stderr.txt",
+          "nodeId": "agent-execution",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "2014ff68-c5c5-4520-a18d-96331880c7f6",
+          "kind": "command-stdout",
+          "name": "command-01-stdout.txt",
+          "nodeId": "quality-checks",
+          "sha256": "d81aa8e64dc72463a37b70bb3ea19fabfd30e143b09640fbd42970b5d5d700c8",
+          "size": 48
+        },
+        {
+          "artifactId": "f61fec2a-a486-4b4c-8b46-d5de6018a588",
+          "kind": "command-stderr",
+          "name": "command-01-stderr.txt",
+          "nodeId": "quality-checks",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "757020ce-4c08-49de-8164-7e4ae4ab3b7b",
+          "kind": "command-stdout",
+          "name": "command-02-stdout.txt",
+          "nodeId": "quality-checks",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "048cfd1d-0175-4dc7-9ab2-0a74d93d914c",
+          "kind": "command-stderr",
+          "name": "command-02-stderr.txt",
+          "nodeId": "quality-checks",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "051fa2c2-6177-4b27-8fa8-77f72748b6aa",
+          "kind": "command-stdout",
+          "name": "command-01-stdout.txt",
+          "nodeId": "targeted-tests",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "e2eac7e5-dd89-42af-a425-2d96c4818cfa",
+          "kind": "command-stderr",
+          "name": "command-01-stderr.txt",
+          "nodeId": "targeted-tests",
+          "sha256": "a6cc825c5339007805c84345c99f7b6311c781be265ed75057d765d17f78ddda",
+          "size": 218
+        },
+        {
+          "artifactId": "d50257db-da0c-450f-bacc-436a5634203c",
+          "kind": "command-stdout",
+          "name": "command-01-stdout.txt",
+          "nodeId": "runtime-verification",
+          "sha256": "caeca3ac5b83cd80f8158d61c3fc8000ff12b2c99ba1be6c8e1e4663d859a2f7",
+          "size": 65
+        },
+        {
+          "artifactId": "696b68db-454d-4ae3-bf76-58b64ffe445c",
+          "kind": "command-stderr",
+          "name": "command-01-stderr.txt",
+          "nodeId": "runtime-verification",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "378c0d5a-3ab4-4d3a-a20b-bf492a95f011",
+          "kind": "review",
+          "name": "independent-review.json",
+          "nodeId": "independent-review",
+          "sha256": "88e46e34a681e1d8ec54b23ac02138e0c22e9ec14b79d7c8c9bef9ed27fcceec",
+          "size": 249
+        },
+        {
+          "artifactId": "8f97de94-2b69-45a1-a08b-3cbf4a3c88da",
+          "kind": "command-stdout",
+          "name": "command-01-stdout.txt",
+          "nodeId": "independent-review",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "db820702-385b-4b0b-8a34-cda2e086c884",
+          "kind": "command-stderr",
+          "name": "command-01-stderr.txt",
+          "nodeId": "independent-review",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "be2aab17-9965-4c05-a2ac-d97d2ff71b93",
+          "kind": "command-stdout",
+          "name": "command-02-stdout.txt",
+          "nodeId": "independent-review",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "15c4b9c5-6ac0-4fb4-8bcd-23a623dfe742",
+          "kind": "command-stderr",
+          "name": "command-02-stderr.txt",
+          "nodeId": "independent-review",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "a61be9ac-c6ee-4768-bdf7-4df19e105d35",
+          "kind": "command-stdout",
+          "name": "command-01-stdout.txt",
+          "nodeId": "apr-evidence",
+          "sha256": "b6cd92a86399eb89d11bc39faf50c703154361a5695ec6a70d659f6e7cb5f455",
+          "size": 7
+        },
+        {
+          "artifactId": "1f0ae602-474d-4b10-af69-9ec107ec0a1e",
+          "kind": "command-stderr",
+          "name": "command-01-stderr.txt",
+          "nodeId": "apr-evidence",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "62c4b719-38b6-4efa-ba30-eb6ef8d97107",
+          "kind": "command-stdout",
+          "name": "command-02-stdout.txt",
+          "nodeId": "apr-evidence",
+          "sha256": "68ce78eb1f34243e6eef45dc5aead920ab809896bcf7508a7e9395393352d1e5",
+          "size": 51
+        },
+        {
+          "artifactId": "e5f328c8-bd6c-4449-8cb2-d495c730baa2",
+          "kind": "command-stderr",
+          "name": "command-02-stderr.txt",
+          "nodeId": "apr-evidence",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "2ccff3a2-b9fc-4cc9-91d9-6875be88e7f4",
+          "kind": "command-stdout",
+          "name": "command-03-stdout.txt",
+          "nodeId": "apr-evidence",
+          "sha256": "5e56da5dbfc3490d25133c8ca82e499b78fa8b4b7903abed115bc7c60345a629",
+          "size": 349
+        },
+        {
+          "artifactId": "8302e37f-ed89-4625-86fa-c41bc6ce6c1b",
+          "kind": "command-stderr",
+          "name": "command-03-stderr.txt",
+          "nodeId": "apr-evidence",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "artifactId": "ed8b3b3e-ad25-44d0-995d-6b0652295376",
+          "kind": "command-stdout",
+          "name": "command-04-stdout.txt",
+          "nodeId": "apr-evidence",
+          "sha256": "96552dd45a54670cb4ba68d01e84e0eb52a1ee167f6b3b7fd337aba5e93dbfeb",
+          "size": 41
+        },
+        {
+          "artifactId": "80f242cb-7fb5-4599-83ad-993f9527b9db",
+          "kind": "command-stderr",
+          "name": "command-04-stderr.txt",
+          "nodeId": "apr-evidence",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        }
+      ],
+      "baseBranch": "main",
+      "baseCommit": "ff23548849023380c9df246c8a70383e978212b3",
+      "blueprint": "standard-coding-mission",
+      "branch": "hydra/mission-2b7eefa6",
+      "changedFiles": [
+        "app.py"
+      ],
+      "checks": {
+        "build": "NOT_REQUIRED",
+        "format": "PASS",
+        "lint": "PASS",
+        "review": "PASS",
+        "runtimeVerification": "PASS",
+        "tests": "PASS",
+        "typecheck": "NOT_REQUIRED"
+      },
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "init",
+            "-b",
+            "main"
+          ],
+          "command": "git init -b main",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.734Z",
+          "startedAt": "2026-08-03T02:50:51.729Z",
+          "stderrArtifactId": "6441610a-b8b1-46ea-8571-6033f292bee9",
+          "stdoutArtifactId": "1f71943c-c3d7-4c45-9d92-9e69bb99e309"
+        },
+        {
+          "argv": [
+            "git",
+            "config",
+            "core.autocrlf",
+            "false"
+          ],
+          "command": "git config core.autocrlf false",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.738Z",
+          "startedAt": "2026-08-03T02:50:51.735Z",
+          "stderrArtifactId": "8b640ee0-b78e-4efc-8df0-a47140287fa8",
+          "stdoutArtifactId": "7588f3ae-72c9-49ae-ad56-c2f16a4f7c1c"
+        },
+        {
+          "argv": [
+            "git",
+            "config",
+            "user.name",
+            "Hydra Deterministic Worker"
+          ],
+          "command": "git config user.name \"Hydra Deterministic Worker\"",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.741Z",
+          "startedAt": "2026-08-03T02:50:51.739Z",
+          "stderrArtifactId": "d771a3ee-e382-4f44-bb6b-beab5ea0a971",
+          "stdoutArtifactId": "7081c315-7147-4eb5-be5a-1ea82e06885f"
+        },
+        {
+          "argv": [
+            "git",
+            "config",
+            "user.email",
+            "hydra-worker@localhost"
+          ],
+          "command": "git config user.email hydra-worker@localhost",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.743Z",
+          "startedAt": "2026-08-03T02:50:51.741Z",
+          "stderrArtifactId": "748406a6-d600-40ff-8385-2c6c4becbb5f",
+          "stdoutArtifactId": "361131a8-d03b-409d-9ef3-6d45571c7b9d"
+        },
+        {
+          "argv": [
+            "git",
+            "add",
+            "."
+          ],
+          "command": "git add .",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.747Z",
+          "startedAt": "2026-08-03T02:50:51.743Z",
+          "stderrArtifactId": "5331c5ab-39c4-4d9c-88cc-975dedad5af5",
+          "stdoutArtifactId": "20122a49-b801-4eb1-a809-721239e431d9"
+        },
+        {
+          "argv": [
+            "git",
+            "commit",
+            "-m",
+            "fixture: create deterministic baseline"
+          ],
+          "command": "git commit -m \"fixture: create deterministic baseline\"",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.754Z",
+          "startedAt": "2026-08-03T02:50:51.747Z",
+          "stderrArtifactId": "751be406-41fe-485b-ab98-c0a13e5f4684",
+          "stdoutArtifactId": "2c827457-95ad-473e-8012-1508e3cac52d"
+        },
+        {
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "command": "git rev-parse HEAD",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.755Z",
+          "startedAt": "2026-08-03T02:50:51.754Z",
+          "stderrArtifactId": "08e16510-8422-4b9f-9acb-f3011ac25a12",
+          "stdoutArtifactId": "2665eb95-ee6f-4042-9d07-5eaa11b5cb81"
+        },
+        {
+          "argv": [
+            "git",
+            "checkout",
+            "-b",
+            "hydra/mission-2b7eefa6"
+          ],
+          "command": "git checkout -b hydra/mission-2b7eefa6",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.858Z",
+          "startedAt": "2026-08-03T02:50:51.855Z",
+          "stderrArtifactId": "a6b59fb1-7268-44e2-8558-847ce18eca27",
+          "stdoutArtifactId": "96ac7254-452d-4bc8-adf8-0ec193388d7d"
+        },
+        {
+          "argv": [
+            "git",
+            "add",
+            "app.py"
+          ],
+          "command": "git add app.py",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.860Z",
+          "startedAt": "2026-08-03T02:50:51.858Z",
+          "stderrArtifactId": "78d577f9-033d-4af6-9143-a08b678470e5",
+          "stdoutArtifactId": "10b94276-47a1-499c-9371-96d348ea9395"
+        },
+        {
+          "argv": [
+            "git",
+            "commit",
+            "-m",
+            "feat: add deterministic mission result"
+          ],
+          "command": "git commit -m \"feat: add deterministic mission result\"",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.865Z",
+          "startedAt": "2026-08-03T02:50:51.860Z",
+          "stderrArtifactId": "3c02814c-6c51-4ac9-8ec3-c5fe14b49987",
+          "stdoutArtifactId": "6b4e562f-891a-42e9-a852-72a4e4bf170a"
+        },
+        {
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "command": "git rev-parse HEAD",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.866Z",
+          "startedAt": "2026-08-03T02:50:51.865Z",
+          "stderrArtifactId": "10d9741f-26e9-4413-a44d-de69a2c84a57",
+          "stdoutArtifactId": "0e462475-1a27-4e3c-b3db-ad47e336e398"
+        },
+        {
+          "argv": [
+            "/usr/local/bin/python3",
+            "quality_check.py"
+          ],
+          "command": "/usr/local/bin/python3 quality_check.py",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:51.967Z",
+          "startedAt": "2026-08-03T02:50:51.938Z",
+          "stderrArtifactId": "f61fec2a-a486-4b4c-8b46-d5de6018a588",
+          "stdoutArtifactId": "2014ff68-c5c5-4520-a18d-96331880c7f6"
+        },
+        {
+          "argv": [
+            "/usr/local/bin/python3",
+            "-m",
+            "compileall",
+            "-q",
+            "app.py",
+            "test_app.py"
+          ],
+          "command": "/usr/local/bin/python3 -m compileall -q app.py test_app.py",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.002Z",
+          "startedAt": "2026-08-03T02:50:51.967Z",
+          "stderrArtifactId": "048cfd1d-0175-4dc7-9ab2-0a74d93d914c",
+          "stdoutArtifactId": "757020ce-4c08-49de-8164-7e4ae4ab3b7b"
+        },
+        {
+          "argv": [
+            "/usr/local/bin/python3",
+            "-m",
+            "unittest",
+            "-v",
+            "test_app.py"
+          ],
+          "command": "/usr/local/bin/python3 -m unittest -v test_app.py",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.098Z",
+          "startedAt": "2026-08-03T02:50:52.047Z",
+          "stderrArtifactId": "e2eac7e5-dd89-42af-a425-2d96c4818cfa",
+          "stdoutArtifactId": "051fa2c2-6177-4b27-8fa8-77f72748b6aa"
+        },
+        {
+          "argv": [
+            "/usr/local/bin/python3",
+            "app.py"
+          ],
+          "command": "/usr/local/bin/python3 app.py",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.142Z",
+          "startedAt": "2026-08-03T02:50:52.131Z",
+          "stderrArtifactId": "696b68db-454d-4ae3-bf76-58b64ffe445c",
+          "stdoutArtifactId": "d50257db-da0c-450f-bacc-436a5634203c"
+        },
+        {
+          "argv": [
+            "git",
+            "diff",
+            "--check",
+            "ff23548849023380c9df246c8a70383e978212b3",
+            "291474fbb8a02af8aed0ba521566193dbcc0bb19"
+          ],
+          "command": "git diff --check ff23548849023380c9df246c8a70383e978212b3 291474fbb8a02af8aed0ba521566193dbcc0bb19",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.176Z",
+          "startedAt": "2026-08-03T02:50:52.173Z",
+          "stderrArtifactId": "db820702-385b-4b0b-8a34-cda2e086c884",
+          "stdoutArtifactId": "8f97de94-2b69-45a1-a08b-3cbf4a3c88da"
+        },
+        {
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "command": "git status --porcelain",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.178Z",
+          "startedAt": "2026-08-03T02:50:52.176Z",
+          "stderrArtifactId": "15c4b9c5-6ac0-4fb4-8bcd-23a623dfe742",
+          "stdoutArtifactId": "be2aab17-9965-4c05-a2ac-d97d2ff71b93"
+        },
+        {
+          "argv": [
+            "git",
+            "diff",
+            "--name-only",
+            "ff23548849023380c9df246c8a70383e978212b3",
+            "291474fbb8a02af8aed0ba521566193dbcc0bb19"
+          ],
+          "command": "git diff --name-only ff23548849023380c9df246c8a70383e978212b3 291474fbb8a02af8aed0ba521566193dbcc0bb19",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.222Z",
+          "startedAt": "2026-08-03T02:50:52.220Z",
+          "stderrArtifactId": "1f0ae602-474d-4b10-af69-9ec107ec0a1e",
+          "stdoutArtifactId": "a61be9ac-c6ee-4768-bdf7-4df19e105d35"
+        },
+        {
+          "argv": [
+            "git",
+            "diff",
+            "--stat",
+            "ff23548849023380c9df246c8a70383e978212b3",
+            "291474fbb8a02af8aed0ba521566193dbcc0bb19"
+          ],
+          "command": "git diff --stat ff23548849023380c9df246c8a70383e978212b3 291474fbb8a02af8aed0ba521566193dbcc0bb19",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.224Z",
+          "startedAt": "2026-08-03T02:50:52.222Z",
+          "stderrArtifactId": "e5f328c8-bd6c-4449-8cb2-d495c730baa2",
+          "stdoutArtifactId": "62c4b719-38b6-4efa-ba30-eb6ef8d97107"
+        },
+        {
+          "argv": [
+            "git",
+            "diff",
+            "ff23548849023380c9df246c8a70383e978212b3",
+            "291474fbb8a02af8aed0ba521566193dbcc0bb19"
+          ],
+          "command": "git diff ff23548849023380c9df246c8a70383e978212b3 291474fbb8a02af8aed0ba521566193dbcc0bb19",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.226Z",
+          "startedAt": "2026-08-03T02:50:52.224Z",
+          "stderrArtifactId": "8302e37f-ed89-4625-86fa-c41bc6ce6c1b",
+          "stdoutArtifactId": "2ccff3a2-b9fc-4cc9-91d9-6875be88e7f4"
+        },
+        {
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "command": "git rev-parse HEAD",
+          "exitCode": 0,
+          "finishedAt": "2026-08-03T02:50:52.228Z",
+          "startedAt": "2026-08-03T02:50:52.226Z",
+          "stderrArtifactId": "80f242cb-7fb5-4599-83ad-993f9527b9db",
+          "stdoutArtifactId": "ed8b3b3e-ad25-44d0-995d-6b0652295376"
+        }
+      ],
+      "diffSummary": "app.py | 5 +++++\n 1 file changed, 5 insertions(+)",
+      "generatedAt": "2026-08-03T02:50:52.285Z",
+      "gitDiff": "diff --git a/app.py b/app.py\nindex bd6b653..4e922c1 100644\n--- a/app.py\n+++ b/app.py\n@@ -6,6 +6,11 @@ def greet(name: str) -> str:\n     return f\"Hello, {name}!\"\n \n \n+def mission_summary() -> str:\n+    \"\"\"Return a deterministic worker result.\"\"\"\n+    return \"Hydra mission executed with commit-bound evidence.\"\n+\n+\n # HYDRA_AGENT_INSERTION_POINT\n \n \n",
+      "missionId": "2b7eefa6-c365-4ead-8fd3-bb1ff5c81435",
+      "repository": "fixture://hydra-safe-demo",
+      "requiredTests": [
+        {
+          "status": "PASS",
+          "test": "test_app.py",
+          "verifiedBy": "targeted-tests"
+        }
+      ],
+      "resultCommit": "291474fbb8a02af8aed0ba521566193dbcc0bb19",
+      "risks": [
+        {
+          "description": "controlled code modification in a fixture-only workspace",
+          "level": "LOW",
+          "productionImpact": false
+        }
+      ],
+      "rollbackPlan": {
+        "baseCommit": "ff23548849023380c9df246c8a70383e978212b3",
+        "branch": "hydra/mission-2b7eefa6",
+        "changedFiles": [
+          "app.py"
+        ],
+        "productionImpact": false,
+        "resultCommit": "291474fbb8a02af8aed0ba521566193dbcc0bb19",
+        "steps": [
+          "Zatrzymaj lokalny proces Hydry (control plane).",
+          "W workspace misji wykonaj: git reset --hard ff23548849023380c9df246c8a70383e978212b3",
+          "Zweryfikuj, że HEAD == ff23548849023380c9df246c8a70383e978212b3.",
+          "Usuń wyłącznie dedykowany katalog stanu tej misji.",
+          "Nie dotykaj współdzielonego state rootu Hermesa ani produkcji."
+        ],
+        "strategy": "git-revert-to-base-commit",
+        "verified": true
+      },
+      "schemaVersion": "1.1",
+      "worker": "deterministic-local"
+    },
+    "eventChain": "chain verified over 67 events",
+    "invalidReasons": [],
+    "valid": true
+  },
+  "independentVerification": {
+    "caveat": "Commit binding was re-verified against the live workspace at capture time. The mission state root is ephemeral, so re-running that check later requires a fresh end-to-end run; the SHA-256 values below remain checkable against this file at any time.",
+    "eventChain": "chain verified over 67 events",
+    "matchesResultCommit": true,
+    "workspaceHeadAtCapture": "291474fbb8a02af8aed0ba521566193dbcc0bb19"
+  },
+  "pinnedTo": {
+    "branch": "claude/hydra-michael-angelo-launch-bizcvn",
+    "commitSha": "a255cba3a1339656abe3666f31af92ed633599cf",
+    "libHydraControlTreeSha": "3cd567aa5e21a2003c14a79f4a693856bfe6a1ef",
+    "note": "This bundle attests to the runtime produced by the tree above. lib/hydra_control and web/ are byte-identical from commit b4b43f6 through this commit, so the captured run reflects this exact code.",
+    "repository": "HazEOskA/hydra-hermes-lab",
+    "webTreeSha": "78b96a531c304c29275cb861f227241e2880638a"
+  },
+  "sanitization": {
+    "applied": true,
+    "note": "Zero replacements were required: the control-plane API never emits host paths, and logs/artifacts already pass through the Hermes redactor. The scrubber ran regardless and its result is recorded here.",
+    "replacementsMade": {},
+    "rules": [
+      "host filesystem paths",
+      "external e-mail addresses",
+      "token-like strings",
+      "key/secret assignments"
+    ]
+  },
+  "schemaVersion": "hydra-evidence-envelope/1.0",
+  "title": "Hydra Control Plane v0.2 — sanitized end-to-end evidence",
+  "verdict": {
+    "claim": "WORKING — full E2E reached COMPLETED with valid, commit-bound evidence.",
+    "invalidReasons": [],
+    "notClaimed": [
+      "No real branch push and no GitHub PR: the pull request is a LOCAL_DESCRIPTOR.",
+      "Only deterministic-local executed; Codex/OpenHands/Claude/Minion were UNAVAILABLE.",
+      "Nothing here attests to any non-local runtime; deployment status remains UNKNOWN."
+    ],
+    "valid": true
+  }
+}

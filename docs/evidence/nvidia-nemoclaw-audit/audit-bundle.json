@@ -1,0 +1,60 @@
+{
+  "actualHost": "vm",
+  "branchHeadSha": "6e1e0dd2bb1a981d67e44cbf2ec4635ea87e995e",
+  "credentialMaterialIncluded": false,
+  "endpoint": "UNKNOWN",
+  "evidenceFileSha256": {
+    "RUNBOOK.md": "740f44b8e4aee4752608090bdeda7230e9e68a1622c9a39810e9c71f2b028c9c",
+    "SHA256SUMS": "dae49a009221e2ca5597d579bb62d6c2bfe821ae05e2d98f9ba919242432d1be"
+  },
+  "execution": {
+    "commandsExecuted": 0,
+    "modelProbeSkipped": "hermes.cli models probe was deliberately NOT run: cmd_models_probe writes provider state into the health table and shells out to the absent nemoclaw binary, so on this host it would record a false health entry for a runtime it never reached.",
+    "reason": "The audit is scoped to the locked host hydra-hermes-runtime-01. This session runs on an ephemeral repository container where none of nemohermes, nemoclaw or hermes exist. Running the audit here would produce results describing the wrong machine."
+  },
+  "hostMatches": false,
+  "keyIsolationResult": "UNKNOWN",
+  "modelIds": [],
+  "modelsHttpStatus": "UNKNOWN",
+  "prohibitionsObserved": [
+    "no rebuild",
+    "no restart",
+    "no stop",
+    "no deploy",
+    "no credential write",
+    "no key values printed",
+    "no provider change",
+    "no endpoint change",
+    "no package install",
+    "no GREEN/YELLOW/RED tests",
+    "no enqueue or cancel"
+  ],
+  "provider": "UNKNOWN",
+  "realInferenceResult": "UNKNOWN",
+  "requiredHost": "hydra-hermes-runtime-01",
+  "sandbox": {
+    "name": "hydra-hermes-lab",
+    "phase": "UNKNOWN",
+    "reason": "nemohermes unavailable; sandbox state not queryable from this host"
+  },
+  "schemaVersion": "hydra-audit-envelope/1.0",
+  "timestampUtc": "2026-08-03T03:45:15Z",
+  "title": "NVIDIA / NemoClaw read-only endpoint audit — NOT EXECUTED",
+  "toolsPresent": {
+    "hermes": false,
+    "nemoclaw": false,
+    "nemohermes": false
+  },
+  "verdictNotes": {
+    "CREDENTIAL_ISOLATION": "UNKNOWN is not reassurance. The required security outcome is NVIDIA_KEY_IN_SANDBOX=ABSENT and it has NOT been demonstrated. Treat isolation as unverified until the probe runs on the locked host.",
+    "NVIDIA_FREE_ENTITLEMENT": "No NVIDIA account evidence exists and none was sought. A working endpoint is not evidence of a free tier."
+  },
+  "verdicts": {
+    "CREDENTIAL_ISOLATION": "UNKNOWN",
+    "ENDPOINT_CONFIGURED": "UNKNOWN",
+    "ENDPOINT_REACHABLE": "UNKNOWN",
+    "MODEL_ROUTE_HEALTHY": "UNKNOWN",
+    "NVIDIA_FREE_ENTITLEMENT": "UNKNOWN",
+    "REAL_INFERENCE": "UNKNOWN"
+  }
+}
